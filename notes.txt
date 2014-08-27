@@ -1,0 +1,57 @@
+http://www.reddit.com/r/webdevbattles/comments/2eduob/official_battle_1_win_three_months_of_reddit_gold/
+
+Alright this is our first go round, so please excuse any problems that come up in this challenge.
+The contest requirements for this first project are intentionally vague in order to inspire the widest variety of solutions. When you vote, you are encouraged to vote for projects based on creativity and functionality.
+--------
+Challenge #1: Elevators/Lifts
+Your objective is to create an application which simulates functionality of one or more elevators/lifts. You can do this however you like with any languages or technology you like.
+There must be a place for users to demo your app and you must post a link to view the source code if it is not available directly from the demo.
+---------
+Winner will be the top voted comment at the end of day Saturday, September 6th!
+--------
+Edit: Forgot that they are not called elevators everywhere.
+
+
+
+
+
+Settings:
+  - Select mode (up/down or specify floor)
+  - Schedule based on number of people who pressed the button or not
+  - Select number of elevators
+    - Specify which floors the elevators can go to
+  - Select number of floors
+  - Select sheduling algorithm (or write new one/update existing)
+  - Apply/reset
+
+Test:
+  - Number of people & all going from lobby/all going to lobby/realistic random/unrealistic random, queue
+  - Single person starting floor/desired floor, queue
+  - View of current queue (rename?) - start/desired floor
+  - Go
+
+Performance:
+  - Average/min/max waiting time
+  - Average/min/max travel time
+  - Average/min/max total time
+  - Any visual details about the algorithm/log?
+
+Elevators:
+  - Current floor/state of the elevator (open, waiting, moving up, moving down)
+  - Number of people on the elevator (& if full)
+  - List of current stops to drop off, list of stops to pick up
+
+Floors:
+  - State of elevators on the floor (open + number of people/full, waiting, moving up to floor, moving up from floor,  moving down to floor, moving down from floor)
+  - People waiting at that floor
+  - People done at that floor
+  - (if up/down) Up/down button state
+  - (if sepecify floor) Requested floors
+
+People: (hover over icon, color icon green->red based on total time)
+  - Starting floor
+  - Desired floor
+  - Waiting time
+  - Travel time
+  - Total time
+  - State (waiting, travelling, done)
