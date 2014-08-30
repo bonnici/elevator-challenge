@@ -1,8 +1,39 @@
-<html>
+<!DOCTYPE html>
+<html lang="en" ng-app="elevatorSim">
 <head>
-    <title>Sim Elevator</title>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+	<link href="/stylesheet.css" rel="stylesheet" type="text/css" />
+	
+	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+	<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
+	<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.23/angular.min.js"></script>
+	
+	<script type="text/javascript" src="js/app.js"></script>
+	<script type="text/javascript" src="js/controllers.js"></script>
+	
+	<title>Sim Elevator</title>
 </head>
-<body>
-    Great job!
+<body ng-controller="IndexController">
+	<h1>Hello, world! {{ testScope }}</h1>
+	<abbr title="HyperText Markup Language" class="initialism">HTML</abbr>
+	
+	<ul class="nav nav-pills">
+		<li class="active"><a href="#">Regular link</a></li>
+		<li class="dropdown">
+			<a id="drop4" role="button" data-toggle="dropdown" href="#">Dropdown <span class="caret"></span></a>
+			<ul id="menu1" class="dropdown-menu" role="menu" aria-labelledby="drop4">
+				<li role="presentation"><a role="menuitem" tabindex="-1" href="http://twitter.com/fat">Action</a></li>
+				<li role="presentation"><a role="menuitem" tabindex="-1" href="http://twitter.com/fat">Another action</a></li>
+				<li role="presentation"><a role="menuitem" tabindex="-1" href="http://twitter.com/fat">Something else here</a></li>
+				<li role="presentation" class="divider"></li>
+				<li role="presentation"><a role="menuitem" tabindex="-1" href="http://twitter.com/fat">Separated link</a></li>
+			</ul>
+		</li>
+	</ul>
+	
 </body>
 </html>
