@@ -15,6 +15,7 @@ Edit: Forgot that they are not called elevators everywhere.
 
 
 
+
 Settings:
   - Select mode (up/down or specify floor)
   - Schedule based on number of people who pressed the button or not
@@ -55,3 +56,319 @@ People: (hover over icon, color icon green->red based on total time)
   - Travel time
   - Total time
   - State (waiting, travelling, done)
+  
+  
+  
+  
+  
+
+
+Up/down mode:
+When call button is pressed
+ - Send message to elevator brain
+ - elevator brain deicdes which elevator is best to send to level
+   - sort elevators by estimated time to get to floor (affected by current level, whether up/down was pressed, current direction, current pickup/dropoff floors) and pick best
+ - elevator brain adds floor as a pick-up floor on that elevator
+
+When elevator opens on floor
+ - Get all users who want to get on that elevator
+ - For each, move into elevator and wait a while so they can get on (less than door close time), send message to elevator to stay open for a while
+
+Elevator state machine
+States are: Door open, door closing, door opening, moving up to floor X, moving down to floor X, arriving at floor X from below, arriving at floor X from above, waiting at floor X
+
+
+
+States
+------
+Open
+Closed
+Moving up towards this floor
+Moving down towards this floor
+
+Elevator needs to store current level and direction, keeps going that way until there are no more pickup/dropoff floors in that direction.
+
+Transitions
+-----------
+Closed -> Open: When the elevator has this floor in dropoff/pickup
+Open -> Open: When someone enters the elevator
+Open -> Closed: Happens X seconds after the most recent open state started
+Closed -> Closed: No pickup/dropoff stops
+Closed (Ln) -> Moving up towards this floor (Ln+1): Elevator has pickup/dropoff and is heading up
+Closed (Ln) -> Moving down towards this floor (Ln-1): Elevator has pickup/dropoff and is heading down
+Moving up towards this floor (Ln) -> Closed (Ln): X seconds after state started, if elevator has this floor in dropoff/pickup
+Moving up towards this floor (Ln) -> Moving up towards this floor (Ln+1): X seconds after state started, if elevator does not have this floor in dropoff/pickup
+Moving down towards this floor (Ln) -> Closed (Ln): X seconds after state started, if elevator has this floor in dropoff/pickup
+Moving down towards this floor (Ln) -> Moving up towards this floor (Ln-1): X seconds after state started, if elevator does not have this floor in dropoff/pickup
+
+ElevatorBank can add floors to pickup/dropoff
+Floor can sent sensor hit to elevator on floor
+Elevators change state based on timeout, e.g.
+- State=Closed,L=1,Dir=null,Drop=[],Pick=[],SensorTime=late: No pickup/dropoff = Keep state as Closed, set timeout for now plus 1 second
+- State=Closed,L=1,Dir=null,Drop=[],Pick=[],SensorTime=late: No pickup/dropoff = Keep state as Closed, set timeout for now plus 1 second
+x ElevatorBank sets pickup as floor 1, direction=up
+- State=Closed,L=1,Dir=null,Drop=[],Pick=[1U],SensorTime=late: Found up pickup on this floor = Set state as Open, remove pickup, set direction as up, set timeout for now plus 3 seconds
+x User sets dropoff as 2, this also resets SensorTime
+- State=Open,L=1,Dir=up,Drop=[2],Pick=[],SensorTime=recent: SensorTime is very recent, so keep state as open and set timeout for now plus 3 seconds
+x User sets dropoff as 4, this also resets SensorTime
+- State=Open,L=1,Dir=Up,Drop=[2,4],Pick=[],SensorTime=late: SensorTime is late enough, so set state to Closed and set timeout for now plus 1 second
+- State=Closed,L=1,Dir=Up,Drop=[2,4],Pick=[],SensorTime=late: Elevator is heading up and has pickup/dropoff above, so set level to 2, state to moving up towards floor, set timeout for now + 2 seconds
+- State=UpTowards,L=2,Dir=Up,Drop=[2,4],Pick=[],SensorTime=late: Elevator is heading towards floor with dropoff on the floor, so change state to Closed and set timeout to now + 1 second
+- State=Closed,L=2,Dir=Up,Drop=[2,4],Pick=[],SensorTime=late: Elevator is on floor with a dropoff, so clear dropoff, set state to Open, set timeout for now plus 3 seconds
+x User leaves elevator, update SensorTime
+- State=Open,L=2,Dir=Up,Drop=[4],Pick=[],SensorTime=recent: Stay open
+- State=Open,L=2,Dir=Up,Drop=[4],Pick=[],SensorTime=late: SensorTime is late enough, so set state to Closed and set timeout for now plus 1 second
+- State=Closed,L=2,Dir=Up,Drop=[4],Pick=[],SensorTime=late: Elevator is heading up and has pickup/dropoff above, so set level to 3, state to moving up towards floor, set timeout for now + 2 seconds
+- State=UpTowards,L=3,Dir=Up,Drop=[4],Pick=[],SensorTime=late: Elevator is heading towards floor with no dropoff/pickup on the floor, and has pickup/dropoff above, so change keep state as UpTowards, update floor, set timeout for now + 2 seconds
+- State=UpTowards,L=4,Dir=Up,Drop=[4],Pick=[],SensorTime=late: Elevator is heading towards floor with dropoff on the floor, so change state to Closed and set timeout to now + 1 second
+- State=Closed,L=4,Dir=Up,Drop=[4],Pick=[],SensorTime=late: Elevator is on floor with a dropoff, so clear dropoff, set state to Open, set timeout for now plus 3 seconds
+x User leaves elevator, update SensorTime
+- State=Open,L=4,Dir=Up,Drop=[],Pick=[],SensorTime=late: SensorTime is late enough, so set state to Closed and set timeout for now plus 1 second
+- State=Closed,L=4,Dir=Up,Drop=[],Pick=[],SensorTime=late: Elevator is heading up and has no pickup/dropoff above, also has no pickup/dropoff below, so set dir to null and wait
+- State=Closed,L=4,Dir=null,Drop=[],Pick=[],SensorTime=late: Elevator has no pickup/dropoff above or below, so wait
+x ElevatorBank sets pickup as floor 3, direction=down
+- State=Closed,L=4,Dir=null,Drop=[],Pick=[3],SensorTime=late: Elevator has pickup below, set state as DownTowards, direction as down, and level as 3
+x ElevatorBank sets pickup as floor 2, direction=down
+- State=DownTowards,L=3,Dir=down,Drop=[],Pick=[3,2],SensorTime=late: Elevator heading towards level with a pickup, Set state as closed
+- State=Closed,L=3,Dir=down,Drop=[],Pick=[3,2],SensorTime=late: Elevator is on floor with a pickup, so clear pickup, set state to Open set timeout for now plus 3 seconds
+x User enters and puts destination as 2
+- State=Open,L=3,Dir=down,Drop=[2],Pick=[2],SensorTime=late: SensorTime is late enough, so set state to Closed
+- State=Closed,L=3,Dir=down,Drop=[2],Pick=[2],SensorTime=late: Elevator going down with pickup down, go down
+- State=DownTowards,L=2,Dir=down,Drop=[2],Pick=[2],SensorTime=late: Heading towards level with pickup, stop
+- State=Closed,L=2,Dir=down,Drop=[],Pick=[],SensorTime=late: On floor with pickup, open & clear pickup & dropoff
+x user leaves
+x user enters and picks 1
+- State=Open,L=2,Dir=down,Drop=[1],Pick=[],SensorTime=late: sensor done, close
+etc 
+
+Implement users as state machines too
+States:
+Started
+WaitingForElevator
+Entering
+WaitingToEnter
+WaitingForFloor
+WaitingToExit
+Exiting
+Done
+
+Started -> WaitingForElevator: User presses button if not already pressed
+WaitingForElevator -> WaitingForElevator: No elevator
+WaitingForElevator -> Entering: Elevator open and no-one else is entering/exiting
+WaitingForElevator -> WaitingToEnter: Elevator open and someone else is entering/exiting
+WaitingToEnter -> WaitingToEnter: Elevator open and someone else is entering/exiting
+Entering -> WaitingForFloor: Timer
+WaitingForFloor -> WaitingForFloor: Not yet at destination
+WaitingForFloor -> Exiting: Elevator at floor and no-one else is entering/exiting
+WaitingForFloor -> WaitingToExit: Elevator at floor and someone else is entering/exiting
+WaitingToExit -> WaitingToExit: Elevator at floor and someone else is entering/exiting
+Exiting -> Done: Timer
+
+- Will need some sort of semaphore for each elevator/floor that is taken and released by people as they enter/exit
+
+Initial implementation:
+- Up/down mode only
+- Single elevator selection algorithm
+- Single elevator movement algorithm (no return to lobby when idle)
+- Customizable number of floors and elevators
+- Tracking of total time to destination, with average time displayed
+- Ability to see status of elevators at all floors, including number of people waiting & their destination/travel time
+- Ability to see status of each elevator, including people in elevator & their destination/travel time
+- Ability to see status of all people, including the elevator/floor they are on (or if they are done), their start and destination, their total travel time
+- Log for state changes, selection algorithm, people boarding/unboarding
+- No limits on number of people in elevator
+- Ability to queue up people singly specifying their start and destination
+- Ability to queue up a bunch of people by specifying their mode (to lobby, from lobby, realistic random, complete random)
+- Ability to send out queued people
+- Ability to clear out all people and start again
+- Combine pickup/dropoff stops (?)
+- Doors open & close immediately, no interrupting a closing door
+- Customizable number of seconds for state changes
+- Support for "automatic mode", which randomly adds people to the simulation
+
+
+Model
+-----
+Simulation (holds everything)
+List of Elevators
+List of Floors
+List of Passengers
+ElevatorSelector
+
+Elevator
+ - ElevatorState (enum)
+ - CurrentFloor (pointer)
+ - Direction (enum)
+ - Pickup stops
+ - Dropoff stops
+ - List of passengers
+ - semaphore state                  | this is one class
+ - last time semaphore was released | ^^^
+ 
+Floor
+ - List of elevators that are open on the floor
+ - List of people waiting to go up
+ - List of people waiting to go down
+ - Up/down pressed state
+ - Floor up (pointer)
+ - Floor down (pointer)
+ 
+Passengers
+ - Start floor
+ - Destination floor
+ - State (enum)
+ - start time
+ - end time
+ 
+Passengers manage themselves, just need to know:
+ - the list of elevators on their start floor when waiting
+ - the elevator's floor when doors are open
+ - whether or not an elevator's semaphore is taken
+ 
+Elevators manage themselves, just need to know
+ - their own details
+ 
+Elevators change Floor Up/down pressed state
+Elevators change Floor's List of elevators that are open on the floor
+ElevatorSelector changes Elevator's Pickup stops
+Passengers change Elevator's semaphore
+Passengers change Elevator's list of passengers
+Passengers change Elevator's dropoff stops
+Passengers change Floor Up/down pressed state
+Passengers change Floor list of people waiting
+
+Elevator has Floor
+ElevatorSelector has Elevators
+Passenger has Elevator or Floor
+
+
+UI
+--
+
+Table for floors:
+        | # going up | # going down | elevator 1 | elevator 2 | elevator 3 | elevator 4 |
+Floor 4 |     1      |      2       |            |            |            |            |
+Floor 3 |     0      |      0       |            |            |            |  closed    |
+Floor 2 |     0      |      2       |   open     | up towards |            |            |
+Floor 1 |     1      |      0       |            |            | down towar |            |
+
+Elevator stats (above elevator in floor table):
+- State
+- Floor number
+- Direction
+- Pickup stops
+- Dropoff stops
+- # passengers
+
+User stats (in another grid below floor grid):
+ - Start floor
+ - Destination floor
+ - State (enum) - including elevator that the person is on
+ - Elapsed time
+
+Log
+- checkboxes to show log for users, elevators, elevator selector
+
+Simulation settings
+- number of floors
+- number of elevators
+- advanced options
+  - time between all states
+- Apply & Reset
+
+Add people to simulation
+- Automatically add people checkbox
+- Automatically add people dropbox (to lobby, from lobby, realistic random, complete random)
+- Add/queue person, specify their start and destination
+- Add/queue people, specify number and mode (to lobby, from lobby, realistic random, complete random)
+- Add all queued people
+- List of queued people
+
+Simulation results
+- number of passengers still waiting
+- number of passengers done
+- average time to done
+
+
+Controller
+ - Sets up scope using factories, based on settings in UI
+ - When in automatic mode, adds random people to the simulation
+ - Handles calls from the UI to add people
+ - Hopefully all data binding happens automatically when the models are in the scope
+ 
+Directives
+ - Anything required to translate model into HTML 
+ 
+Filters
+ - Use for log filtering, any other UI filtering
+
+Factories
+ - Simulation
+   - Constructor takes all sim settings (# floors, #elevators, etc) (as JS object, not params)
+   - Stores list of Elevators, list of Floors, list of Passengers
+   - Uses other factories to build and attach objects to each-other
+     - Build all floors
+     - Build all elevators, starting closed at first floor with no people and an available mutex
+   - Has a function to add a passenger to the simulation, given starting and destination floors
+   - Passengers have a reference back to the simulation and use that to request floors and update simulation state when done
+   
+ - Floor
+   - Up/down pressed state
+   - Floor number
+   - List of people
+   - List of elevators on the floor
+   - No logic, just get updated by passengers and elevators
+ 
+ - ElevatorDoorMutex
+   - Simple class that is used to test if an elevator's door is available
+   - functions - claim & release
+   - state - claimed boolean
+ 
+ - Elevator
+   - ElevatorState
+   - Current floor
+   - ElevatorDirection
+   - pickup floors
+   - dropoff floors
+   - list of people
+ 
+ - Passenger
+   - Start floor
+   - Destination floor
+   - State
+   - Elapsed time
+   - Finished time
+   - Current floor
+   - Current elevator
+   
+Constants/Enums
+ - ElevatorDirection
+   - Up, Down, or Stationary
+   
+ - ElevatorState
+   - Open, Closed, UpTowards, DownTowards
+   
+ - PassengerState
+   - Started, WaitingForElevator, Entering, WaitingToEnter, WaitingForFloor, WaitingToExit, Exiting, Done
+ 
+Services
+ - ElevatorSelector
+   - single function, selectElevator, takes list of elevators, floor number, and direction, returns the selected elevator
+   
+ - ElevatorStateTransition
+   - single function, getNextState, takes elevator and current state, returns next state
+   
+ - PassengerStateTransition
+   - single function, getNextState, takes passenger and current state, returns next state
+   
+ - Logger
+   - addLog(type, string)
+   - getLogs
+   
+   
+   
+Feasibility
+ - Timer to update state works
+ - Scope updates work
+ - Logger works as a service, can be tied to scope
+ - Basic test, simple passenger with a simple state transition service and logger service, show passenger details on website
