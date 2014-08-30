@@ -1,5 +1,7 @@
 'use strict';
 
 angular.module('elevatorSim', [
-	'elevatorSim.controllers'
+	'elevatorSim.controllers',
+	'elevatorSim.services',
+	'elevatorSim.filters'
 ]);
