@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	
 	<link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
-	<link href="/stylesheet.css" rel="stylesheet" type="text/css" />
+	<link href="/style.css" rel="stylesheet" type="text/css" />
 	
 	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
@@ -20,6 +20,78 @@
 	<title>Sim Elevator</title>
 </head>
 <body ng-controller="IndexController">
+
+	<form class="form-inline" role="form">
+		<div class="form-group">
+			<label class="sr-only" for="resetSimElevators">Number of Elevators</label>
+			<input type="number" class="form-control" id="resetSimElevators" ng-model="resetSimElevators" placeholder="Num Elevators">
+		</div>
+		<div class="form-group">
+			<label class="sr-only" for="resetSimFloors">Number of Floors</label>
+			<input type="number" class="form-control" id="resetSimFloors" ng-model="resetSimFloors" placeholder="Num Floors">
+		</div>
+		<button type="submit" class="btn btn-default" ng-click="resetSimulation()">Reset</button>
+		<!-- todo form validation - must exist, must be numbers -->
+	</form>
+
+	<form class="form-inline" role="form">
+		<div class="form-group">
+			<label class="sr-only" for="addPassengerStartLevel">Start Level</label>
+			<input type="number" class="form-control" id="addPassengerStartLevel" ng-model="addPassengerStartLevel" placeholder="Start Level">
+		</div>
+		<div class="form-group">
+			<label class="sr-only" for="addPassengerDestinationLevel">Destination Level</label>
+			<input type="number" class="form-control" id="addPassengerDestinationLevel" ng-model="addPassengerDestinationLevel" placeholder="Destination Level">
+		</div>
+		<button type="submit" class="btn btn-default" ng-click="addPassenger()">Add Passenger</button>
+		<!-- todo form validation - must exist, must be numbers, can't be on the same floor, must be within floor limits -->
+	</form>
+	
+	<h1>Elevators</h1>
+	<ul>
+		<li ng-repeat="elevator in simulation.elevators">
+			Number: {{ elevator.elevatorNum }} |
+			State: {{ elevator.elevatorState }} |
+			Mutex: {{ elevator.doorMutex.claimed }} |
+			Current Level: {{ elevator.currentFloor.getLevel() }} |
+			Direction: {{ elevator.direction }} |
+			Pickup Stops: {{ elevator.pickupStops }} |
+			Dropoff Stops: {{ elevator.dropoffStops }} |
+			Passengers on Elevator: {{ elevator.passengersOnElevator }}
+		</li>
+	</ul>
+
+	<h1>Floors</h1>
+	<ul>
+		<li ng-repeat="floor in simulation.floors | reverse">
+			Number: {{ floor.floorNum }} |
+			Level: {{ floor.getLevel() }} |
+			Up Pressed: {{ floor.upPressed }} |
+			Down Pressed: {{ floor.downPressed }} |
+			Passengers on Floor: {{ floor.passengersOnFloorToString() }} |
+			Elevator Slots: {{ floor.elevatorSlotsToString() }}
+		</li>
+	</ul>
+	
+	<h1>Passengers</h1>
+	<ul>
+		<li ng-repeat="passenger in simulation.passengers">
+			Number: {{ passenger.passengerNum }} |
+			Start: {{ passenger.startFloor.getLevel() }} |
+			Destination: {{ passenger.destinationFloor.getLevel() }} |
+			State: {{ passenger.passengerState }} |
+			Start Time: {{ passenger.startTime }} |
+			End Time: {{ passenger.endTime }} |
+			Floor: {{ passenger.currentFloor.getLevel() }} |
+			Elevator: {{ passenger.currentElevator.elevatorNum }}
+		</li>
+	</ul>
+		
+	<h1>Log</h1>
+	<ul>
+		<li ng-repeat="log in logs">{{ log.timestamp }} | {{ log.type }} | {{ log.message }}</li>
+	</ul>
+	<!--
 	<h1>Hello, world! {{ testScope }}</h1>
 	<abbr title="HyperText Markup Language" class="initialism">HTML</abbr>
 	
@@ -45,6 +117,7 @@
 			<li ng-repeat="log in logs | logType:filteredLogType">{{ log.timestamp }} {{ log.type }} {{ log.message }}</li>
 		</ul>
 	</p>
+	-->
 	
 	<script>
 		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){

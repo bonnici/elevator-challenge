@@ -2,7 +2,29 @@
 
 angular.module('elevatorSim.controllers', []).
 
-controller('IndexController', ['$scope', 'Logger', 'Incrementer', function($scope, Logger, Incrementer) {
+controller('IndexController', 
+	['$scope', 'Logger', 'Simulation', 'Incrementer', 
+	function($scope, Logger, Simulation, Incrementer) {
+		
+	$scope.logs = Logger.logs;
+	$scope.simulation = new Simulation({ numElevators: 3, numFloors: 6 });
+	
+	$scope.resetSimulation = function() {
+		if ($scope.resetSimElevators && $scope.resetSimFloors) {	
+			$scope.simulation.init({ 
+				numElevators: $scope.resetSimElevators,
+				numFloors: $scope.resetSimFloors
+			});
+		}
+	};
+	
+	$scope.addPassenger = function() {
+		if ($scope.addPassengerStartLevel && $scope.addPassengerDestinationLevel) {
+			$scope.simulation.addPassenger($scope.addPassengerStartLevel, $scope.addPassengerDestinationLevel);
+		}
+	};
+	
+	/*
 	$scope.testScope = "testing scope";
 	
 	$scope.incrementer1 = new Incrementer(1000);
@@ -21,4 +43,5 @@ controller('IndexController', ['$scope', 'Logger', 'Incrementer', function($scop
 	$scope.clearLogs = function() {
 		Logger.clearLogs();
 	};
+	*/
 }]);

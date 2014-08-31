@@ -17,4 +17,10 @@ filter('logType', function() {
 		});
 		return filtered;
 	};
+}).
+
+filter('reverse', function() {
+	return function(input) {
+		return input.slice().reverse();
+	};
 });
