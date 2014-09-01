@@ -28,6 +28,22 @@ controller('IndexController',
 		$scope.simulation.testSomething();
 	};
 	
+	$scope.openElevator = function() {
+		$scope.simulation.openElevator($scope.updateElevatorNumber);
+	};
+	
+	$scope.closeElevator = function() {
+		$scope.simulation.closeElevator($scope.updateElevatorNumber);
+	};
+	
+	$scope.moveElevator = function() {
+		$scope.simulation.moveElevator($scope.updateElevatorNumber, $scope.updateElevatorLevel);
+	};
+	
+	$scope.setElevatorUp = function(up) {
+		$scope.simulation.setElevatorDirection($scope.updateElevatorNumber, up);
+	};
+	
 	/*
 	$scope.testScope = "testing scope";
 	

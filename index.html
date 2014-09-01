@@ -48,6 +48,23 @@
 	</form>
 
 	<form class="form-inline" role="form">
+		<div class="form-group">
+			<label class="sr-only" for="updateElevatorNumber">Elevator Number</label>
+			<input type="number" class="form-control" id="updateElevatorNumber" ng-model="updateElevatorNumber" placeholder="Update Elevator">
+		</div>
+		<div class="form-group">
+			<label class="sr-only" for="updateElevatorLevel">Elevator Level</label>
+			<input type="number" class="form-control" id="updateElevatorLevel" ng-model="updateElevatorLevel" placeholder="Elevator Level">
+		</div>
+		<button type="submit" class="btn btn-default" ng-click="openElevator()">Open Elevator</button>
+		<button type="submit" class="btn btn-default" ng-click="closeElevator()">Close Elevator</button>
+		<button type="submit" class="btn btn-default" ng-click="moveElevator()">Move To Floor</button>
+		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(true)">Set as Up</button>
+		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(false)">Set as Down</button>
+		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(null)">Set as Stationary</button>
+	</form>
+
+	<form class="form-inline" role="form">
 		<button type="submit" class="btn btn-default" ng-click="testSomething()">Test Something</button>
 	</form>
 	
@@ -93,7 +110,7 @@
 		
 	<h1>Log</h1>
 	<ul>
-		<li ng-repeat="log in logs">{{ log.timestamp }} | {{ log.type }} | {{ log.message }}</li>
+		<li ng-repeat="log in logs">{{ log.timestamp }} | {{ log.type }} | {{ log.objectId }} | {{ log.message }}</li>
 	</ul>
 	<!--
 	<h1>Hello, world! {{ testScope }}</h1>
