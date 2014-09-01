@@ -83,7 +83,6 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
     	}
     };
     
-    // temporary? could keep for a "manual mode" - option to disable selector or all elevator movements
     Simulation.prototype.openElevator = function(elevatorNum) {
     	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
     		this.elevators[elevatorNum].elevatorState = Enums.ElevatorState.Open;
@@ -544,7 +543,6 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     	return numStops;
     };
     
-    // Probably temporary
     Elevator.prototype.passengersOnElevatorToString = function() {
     	var result = "[";
     	for (var passengerNum in this.passengersOnElevator) {
@@ -876,7 +874,6 @@ factory('Floor', ['Logger', 'ElevatorSelector', 'Enums', function(Logger, Elevat
     	}
     };
     
-    // Probably temporary
     Floor.prototype.elevatorSlotsToString = function() {
     	var result = "[";
     	for (var i=0; i < this.elevatorSlots.length; i++) {
@@ -886,7 +883,6 @@ factory('Floor', ['Logger', 'ElevatorSelector', 'Enums', function(Logger, Elevat
     	return result;
     };
     
-    // Probably temporary
     Floor.prototype.passengersOnFloorToString = function() {
     	var result = "[";
     	for (var passengerNum in this.passengersOnFloor) {
@@ -1279,35 +1275,4 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     function log(passengerNum, message) {
 		Logger.log("PassengerStateTransition", passengerNum, message);
     }
-}]).
-
-factory('Incrementer', ['$timeout', 'Logger', function($timeout, Logger) {
-	
-	var Incrementer = function(interval) {
-		this.interval = interval;
-		this.incrementing = 0;
-		
-		if (this.incrementing < 100) {
-			var self = this;
-			$timeout(function() {
-				self.updateIncrementing();
-			}, this.interval);
-		}
-    };
-    
-    Incrementer.prototype.getStuff = function() {
-    	return this.testParam + " " + this.testLocal;
-    };
-    
-    Incrementer.prototype.updateIncrementing = function() {
-    	this.incrementing++;
-    	Logger.addLog("" + this.interval, "Incremented to " + this.incrementing);
-    	
-		var self = this;
-		$timeout(function() {
-			self.updateIncrementing();
-		}, this.interval);
-    };
-    
-	return Incrementer;
 }]);
