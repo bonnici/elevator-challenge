@@ -19,8 +19,8 @@ service('Logger', ["$log", function($log) {
 	};
 }]).
 
-factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 
-	function(Logger, Elevator, Floor, Passenger) {
+factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums', 
+	function(Logger, Elevator, Floor, Passenger, Enums) {
 	
 	var Simulation = function(settings) {
 		this.init(settings);
@@ -70,6 +70,11 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger',
     	passenger.currentFloor = null;
     	passenger.currentElevator = elevator;
     	elevator.passengersOnElevator[passenger.passengerNum] = passenger;
+    	
+    	elevator.doorMutex.claim();
+    	elevator.elevatorState = Enums.ElevatorState.Open;
+		elevator.direction = Enums.ElevatorDirection.Up;
+		passenger.passengerState = Enums.PassengerState.WaitingForFloor;
     };
     
     Simulation.prototype.getFloorForLevel = function(level) {
@@ -169,12 +174,36 @@ factory('Enums', function(Logger) {
 	};
 }).
 
-factory('Elevator', ['Logger', 'Enums', function(Logger, Enums) {
+// Mutex that represents the elevator's entrance to stop multiple people from getting on or off at the same time
+factory('ElevatorMutex', ['Logger', function(Logger) {
+	
+	var ElevatorMutex = function() {
+		this.claimed = false;
+    };
+    
+    // Returns true if the mutex could be claimed, false if not
+    ElevatorMutex.prototype.claim = function() {
+    	if (this.claimed) {
+    		return false;
+    	} else {
+    		this.claimed = true;
+    		return true;
+    	}
+    };
+    
+    ElevatorMutex.prototype.release = function() {
+    	this.claimed = false;
+    };
+    
+	return ElevatorMutex;
+}]).
+
+factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums, ElevatorMutex) {
 	
 	var Elevator = function(elevatorNum) {
 		this.elevatorNum = elevatorNum;
 		this.elevatorState = Enums.ElevatorState.Closed;
-		this.doorMutex = null; //todo class
+		this.doorMutex = new ElevatorMutex();
 		this.currentFloor = null;
 		this.direction = Enums.ElevatorDirection.Stationary;
 		this.pickupStops = [];
