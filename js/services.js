@@ -2,10 +2,11 @@
 
 angular.module('elevatorSim.services', []).
 
-service('Logger', function() {
+service('Logger', ["$log", function($log) {
 	this.logs = [];
 	
 	this.log = function(type, message) {
+		$log.info(type + ": " + message);
 		this.logs.push({ 
 			timestamp: new Date().getTime(), 
 			type: type,
@@ -16,7 +17,7 @@ service('Logger', function() {
 	this.clearLogs = function() {
 		this.logs.length = 0;
 	};
-}).
+}]).
 
 factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 
 	function(Logger, Elevator, Floor, Passenger) {
@@ -141,14 +142,41 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger',
 	return Simulation;
 }]).
 
-factory('Elevator', ['Logger', function(Logger) {
+
+factory('Enums', function(Logger) {
+	return {
+		ElevatorDirection: { 
+			Stationary: "Stationary", 
+			Up: "Up", 
+			Down: "Down" 
+		},
+		ElevatorState: { 
+			Open: "Open", 
+			Closed: "Closed", 
+			UpTowards: "Moving up towards floor", 
+			DownTowards: "Moving down towards floor" 
+		},
+		PassengerState: { 
+			JoiningSim: "Joining simulation", 
+			WaitingForElevator: "Waiting for elevator", 
+			EnteringElevator: "Entering elevator", 
+			WaitingToEnterElevator: "Waiting to enter elevator", 
+			WaitingForFloor: "Waiting for floor", 
+			WaitingToExitElevator: "Waiting to exit elevator", 
+			ExitingElevator: "Exiting elevator", 
+			ReachedDestination: "Reached destination"
+		}
+	};
+}).
+
+factory('Elevator', ['Logger', 'Enums', function(Logger, Enums) {
 	
 	var Elevator = function(elevatorNum) {
 		this.elevatorNum = elevatorNum;
-		this.elevatorState = null; //todo enum
+		this.elevatorState = Enums.ElevatorState.Closed;
 		this.doorMutex = null; //todo class
 		this.currentFloor = null;
-		this.direction = null; //todo enum
+		this.direction = Enums.ElevatorDirection.Stationary;
 		this.pickupStops = [];
 		this.dropoffStops = [];
 		this.passengersOnElevator = {};
@@ -198,7 +226,6 @@ factory('Floor', ['Logger', function(Logger) {
     };
     
     Floor.prototype.setElevatorSlot = function(slotNumber, elevator) {
-    	console.log("setElevatorSlot", this.floorNum, slotNumber, elevator);
     	if (slotNumber >= 0 && slotNumber < this.elevatorSlots.length) {
     		this.elevatorSlots[slotNumber] = elevator;
     	}
@@ -227,13 +254,13 @@ factory('Floor', ['Logger', function(Logger) {
 	return Floor;
 }]).
 
-factory('Passenger', ['Logger', function(Logger) {
+factory('Passenger', ['Logger', 'Enums', function(Logger, Enums) {
 	
 	var Passenger = function(passengerNum, startFloor, destinationFloor) {
 		this.passengerNum = passengerNum;
 		this.startFloor = startFloor;
 		this.destinationFloor = destinationFloor;
-		this.passengerState = null; //todo enum
+		this.passengerState = Enums.PassengerState.JoiningSim;
 		this.startTime = new Date().getTime();
 		this.endTime = null;
 		this.currentFloor = startFloor;
