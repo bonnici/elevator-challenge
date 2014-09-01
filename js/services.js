@@ -20,8 +20,8 @@ service('Logger', ["$log", function($log) {
 	};
 }]).
 
-factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums', 
-	function(Logger, Elevator, Floor, Passenger, Enums) {
+factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passenger', 'Enums', 
+	function(Logger, Elevator, ElevatorSelector, Floor, Passenger, Enums) {
 	
 	var Simulation = function(settings) {
 		this.init(settings);
@@ -45,6 +45,8 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
 		if (groundFloor) {
 			initElevatorCurrentFloor.call(this, groundFloor);
 		}
+		
+		ElevatorSelector.elevators = this.elevators;
 		
 		Logger.clearLogs();
 		Logger.log("Simulation", "0", "Initialized simulation with " + settings.numElevators 
@@ -112,7 +114,8 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     };
     Simulation.prototype.addPickupStopToElevator = function(elevatorNum, level, goingUp) {
     	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
-    		this.elevators[elevatorNum].addPickupStop(this.getFloorForLevel(level), goingUp);
+    		var direction = goingUp ? Enums.ElevatorDirection.Up : Enums.ElevatorDirection.Down;
+    		this.elevators[elevatorNum].addPickupStop(this.getFloorForLevel(level), direction);
     	}
     };
     Simulation.prototype.addDropoffStopToElevator = function(elevatorNum, level) {
@@ -327,12 +330,12 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     	}
     };
     
-    Elevator.prototype.addPickupStop = function(floor, goingUp) {
+    Elevator.prototype.addPickupStop = function(floor, direction) {
     	if (floor) {
-    		if (goingUp) {
+    		if (direction == Enums.ElevatorDirection.Up) {
 				this.pickupGoingUpStops[floor.floorNum] = true;
     		}
-    		else {
+    		else if (direction == Enums.ElevatorDirection.Down) {
 				this.pickupGoingDownStops[floor.floorNum] = true;
     		}
     	}
@@ -463,11 +466,19 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     };
     
     Elevator.prototype.hasUpPickupAbove = function() {
-    	return findStopBetween(this.pickupGoingUpStops, this.currentFloor.floorNum + 1, this.dropoffStops.length - 1);
+    	return findStopBetween(this.pickupGoingUpStops, this.currentFloor.floorNum + 1, this.pickupGoingUpStops.length - 1);
+    };
+    
+    Elevator.prototype.hasAnyUpPickups = function() {
+    	return findStopBetween(this.pickupGoingUpStops, 0, this.pickupGoingUpStops.length - 1);
     };
     
     Elevator.prototype.hasDownPickupBelow = function() {
     	return findStopBetween(this.pickupGoingDownStops, 0, this.currentFloor.floorNum - 1);
+    };
+    
+    Elevator.prototype.hasAnyDownPickups = function() {
+    	return findStopBetween(this.pickupGoingDownStops, 0, this.pickupGoingDownStops.length - 1);
     };
     
     // Find the direction of the pickup stop closest to the current floor, assuming there are no pickups on this floor
@@ -499,10 +510,38 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     };
     
     Elevator.prototype.hasAnyPickupAtFloor = function(floorNum) {
+    	return this.hasUpPickupOnFloor(floorNum) || this.hasDownPickupOnFloor(floorNum);
+    };
+    
+    Elevator.prototype.hasUpPickupOnFloor = function(floorNum) {
     	if (floorNum < 0 || floorNum >= this.pickupGoingUpStops.length) {
     		return false;
     	}
-    	return this.pickupGoingUpStops[floorNum] || this.pickupGoingDownStops[floorNum];
+    	return this.pickupGoingUpStops[floorNum];
+    };
+    
+    Elevator.prototype.hasDownPickupOnFloor = function(floorNum) {
+    	if (floorNum < 0 || floorNum >= this.pickupGoingDownStops.length) {
+    		return false;
+    	}
+    	return this.pickupGoingDownStops[floorNum];
+    };
+    
+    // Count stops, double counting if there is more than one type of stop of a floor
+    Elevator.prototype.countStops = function(floorNum) {
+    	var numStops = 0;
+    	for (var i = 0; i <= this.dropoffStops.length; i++) {
+    		if (this.dropoffStops[i]) {
+    			numStops++;
+    		}
+    		if (this.pickupGoingUpStops[i]) {
+    			numStops++;
+    		}
+    		if (this.pickupGoingDownStops[i]) {
+    			numStops++;
+    		}
+    	}
+    	return numStops;
     };
     
     // Probably temporary
@@ -672,7 +711,101 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
     }
 }]).
 
-factory('Floor', ['Logger', 'Enums', function(Logger, Enums) {
+// This service finds the best elevator and sets a pickup stop on it when a call button is pressed.
+service('ElevatorSelector', ["Logger", "Enums", function(Logger, Enums) {
+	
+	this.elevators = null; // Must be initialized with a list of all elevators in the simulation
+	
+	// Poorly optimized selector function, but it works
+	this.selectBestElevator = function(floor, direction) {
+		if (!floor || direction == Enums.ElevatorDirection.Stationary) {
+			return;
+		}
+		log("Selecting elevator for level " + floor.getLevel() + " going " + (direction == Enums.ElevatorDirection.Up ? "up" : "down"));
+		
+		var curElevator;
+		// First look for any elevators stationary on the floor
+		for (var i=0; i < this.elevators.length; i++) {
+			curElevator = this.elevators[i];
+			
+			if (curElevator.direction == Enums.ElevatorDirection.Stationary && curElevator.currentFloor == floor) {
+				log("Selecting elevator " + curElevator.elevatorNum + " since it was stationary on level");
+				curElevator.addPickupStop(floor, direction);
+				return;
+			}
+		}
+		
+		// Next check to see if any elevators already have the floor as a pickup stop going in the right direction,
+		// if so we don't need to do anything
+		for (var i=0; i < this.elevators.length; i++) {
+			curElevator = this.elevators[i];
+			
+			if (direction == Enums.ElevatorDirection.Up && curElevator.hasUpPickupOnFloor(floor.floorNum)) {
+				log("Elevator " + curElevator.elevatorNum + " is already picking up going up on level");
+				return;
+			}
+			if (direction == Enums.ElevatorDirection.Down && curElevator.hasDownPickupOnFloor(floor.floorNum)) {
+				log("Elevator " + curElevator.elevatorNum + " is already picking up going down on level");
+				return;
+			}
+		}
+		
+		// Next look for any elevators that are stationary or heading in the right direction with no pickups going the 
+		// wrong way, and use the closest one
+		var closestElevator = null;
+		var smallestFloorDifference = null;
+		for (var i=0; i < this.elevators.length; i++) {
+			curElevator = this.elevators[i];
+			
+			var isStationary = curElevator.direction == Enums.ElevatorDirection.Stationary;
+			var isGoingUpFromBelowWithNoDownPickups = curElevator.direction == Enums.ElevatorDirection.Up 
+				&& curElevator.currentFloor.floorNum <= floor.floorNum && !curElevator.hasAnyDownPickups();
+			var isGoingDownFromAboveWithNoUpPickups = curElevator.direction == Enums.ElevatorDirection.Down 
+				&& curElevator.currentFloor.floorNum >= floor.floorNum && !curElevator.hasAnyUpPickups();
+			
+			if (isStationary
+				|| (direction == Enums.ElevatorDirection.Up && isGoingUpFromBelowWithNoDownPickups)
+				|| (direction == Enums.ElevatorDirection.Down && isGoingDownFromAboveWithNoUpPickups)) {
+				
+				var floorDifference = Math.abs(floor.floorNum - curElevator.currentFloor.floorNum);
+				if (smallestFloorDifference === null || floorDifference < smallestFloorDifference) {
+					closestElevator = curElevator;
+					smallestFloorDifference = floorDifference;
+				}
+			}
+		}
+		if (closestElevator !== null) {
+			log("Selecting elevator " + curElevator.elevatorNum + " since it was the closest that was stationary or moving in the right direction");
+			closestElevator.addPickupStop(floor, direction);
+			return;
+		}
+		
+		// Otherwise all elevators are currently heading away from the floor, just pick the one with the least number of 
+		// stops
+		var leastUsedElevator = null;
+		var leastStops = null;
+		for (var i=0; i < this.elevators.length; i++) {
+			curElevator = this.elevators[i];
+			
+			var numStops = curElevator.countStops();
+			if (leastStops === null || numStops < leastStops) {
+				leastUsedElevator = curElevator;
+				leastStops = numStops;
+			}
+		}
+		if (leastUsedElevator !== null) {
+			log("Selecting elevator " + curElevator.elevatorNum + " since it had the least number of stops");
+			leastUsedElevator.addPickupStop(floor, direction);
+			return;
+		}
+	};
+    
+    function log(message) {
+		Logger.log("ElevatorSelector", 0, message);
+    }
+}]).
+
+factory('Floor', ['Logger', 'ElevatorSelector', 'Enums', function(Logger, ElevatorSelector, Enums) {
 	
 	var Floor = function(floorNum) {
 		this.floorNum = floorNum; // floorNum is zero index, number 0 will be level 1
@@ -708,6 +841,7 @@ factory('Floor', ['Logger', 'Enums', function(Logger, Enums) {
     		} 
     		else {
     			this.upPressed = true;
+    			ElevatorSelector.selectBestElevator(this, Enums.ElevatorDirection.Up);
     			return true;
     		}
     	}
@@ -717,6 +851,7 @@ factory('Floor', ['Logger', 'Enums', function(Logger, Enums) {
     		} 
     		else {
     			this.downPressed = true;
+    			ElevatorSelector.selectBestElevator(this, Enums.ElevatorDirection.Down);
     			return true;
     		}
     	}
@@ -834,8 +969,6 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
     	if (!this.currentFloor) {
     		return false;
     	}
-		
-		//todo need to call the elevator selector somewhere
 		
     	var direction = this.getDirection();
 	    return this.currentFloor.callElevatorIfNeeded(direction);
