@@ -24,6 +24,10 @@ controller('IndexController',
 		}
 	};
 	
+	$scope.testSomething = function() {
+		$scope.simulation.testSomething();
+	};
+	
 	/*
 	$scope.testScope = "testing scope";
 	

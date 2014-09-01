@@ -46,6 +46,10 @@
 		<button type="submit" class="btn btn-default" ng-click="addPassenger()">Add Passenger</button>
 		<!-- todo form validation - must exist, must be numbers, can't be on the same floor, must be within floor limits -->
 	</form>
+
+	<form class="form-inline" role="form">
+		<button type="submit" class="btn btn-default" ng-click="testSomething()">Test Something</button>
+	</form>
 	
 	<h1>Elevators</h1>
 	<ul>
@@ -57,7 +61,7 @@
 			Direction: {{ elevator.direction }} |
 			Pickup Stops: {{ elevator.pickupStops }} |
 			Dropoff Stops: {{ elevator.dropoffStops }} |
-			Passengers on Elevator: {{ elevator.passengersOnElevator }}
+			Passengers on Elevator: {{ elevator.passengersOnElevatorToString() }}
 		</li>
 	</ul>
 
@@ -77,12 +81,12 @@
 	<ul>
 		<li ng-repeat="passenger in simulation.passengers">
 			Number: {{ passenger.passengerNum }} |
-			Start: {{ passenger.startFloor.getLevel() }} |
-			Destination: {{ passenger.destinationFloor.getLevel() }} |
+			Start Level: {{ passenger.startFloor.getLevel() }} |
+			Destination Level: {{ passenger.destinationFloor.getLevel() }} |
 			State: {{ passenger.passengerState }} |
 			Start Time: {{ passenger.startTime }} |
 			End Time: {{ passenger.endTime }} |
-			Floor: {{ passenger.currentFloor.getLevel() }} |
+			Floor Level: {{ passenger.currentFloor.getLevel() }} |
 			Elevator: {{ passenger.currentElevator.elevatorNum }}
 		</li>
 	</ul>

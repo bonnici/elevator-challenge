@@ -53,12 +53,22 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger',
     	if (startFloor && destinationFloor) {
     		var passenger = new Passenger(this.nextPassengerNum++, startFloor, destinationFloor);
 			this.passengers.push(passenger);
-			//temp? may move this into passenger (or is it part of the state update)
 			startFloor.passengersOnFloor[passenger.passengerNum] = passenger;
-    	}
 		
-		Logger.log("Simulation", "Added passenger with start level " + startLevel
-			+ " and destination level " + destinationLevel);
+			Logger.log("Simulation", "Added passenger with start level " + startLevel
+				+ " and destination level " + destinationLevel);
+    	}
+    };
+    
+    // Temporary function to run some code
+    Simulation.prototype.testSomething = function() {
+    	// This would usually be done by the passenger using mutex
+    	var passenger = this.passengers[0];
+    	var elevator = this.elevators[0];
+    	delete passenger.currentFloor.passengersOnFloor[passenger.passengerNum];
+    	passenger.currentFloor = null;
+    	passenger.currentElevator = elevator;
+    	elevator.passengersOnElevator[passenger.passengerNum] = passenger;
     };
     
     Simulation.prototype.getFloorForLevel = function(level) {
@@ -108,7 +118,15 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger',
     	}
     }
     
+    function initElevatorPickupDropoffStops() {
+    	var numFloors = this.floors.length;
+    	for (var i=0; i < this.elevators.length; i++) {
+    		this.elevators[i].initPickupDropoffStops(numFloors);
+    	}
+    }
+    
     // elevator and floor must not be null
+    // this might be moved to elevator state updater
     function setElevatorOnFloor(elevator, floor) {
     	// First remove elevator from old floor
     	if (elevator.currentFloor) {
@@ -118,13 +136,6 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger',
     	// Then update elevator's current floor and add elevator to new floor
 		elevator.currentFloor = floor;
 		floor.setElevatorSlot(elevator.elevatorNum, elevator)
-    }
-    
-    function initElevatorPickupDropoffStops() {
-    	var numFloors = this.floors.length;
-    	for (var i=0; i < this.elevators.length; i++) {
-    		this.elevators[i].initPickupDropoffStops(numFloors);
-    	}
     }
     
 	return Simulation;
@@ -150,6 +161,16 @@ factory('Elevator', ['Logger', function(Logger) {
     		this.pickupStops.push(false);
     		this.dropoffStops.push(false);
     	}
+    };
+    
+    // Probably temporary
+    Elevator.prototype.passengersOnElevatorToString = function() {
+    	var result = "[";
+    	for (var passengerNum in this.passengersOnElevator) {
+    		result += passengerNum + " ";
+    	}
+    	result += "]";
+    	return result;
     };
     
 	return Elevator;
