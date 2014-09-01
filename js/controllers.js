@@ -18,6 +18,10 @@ controller('IndexController',
 		}
 	};
 	
+	$scope.stopSimulation = function() {
+		$scope.simulation.stop();
+	};
+	
 	$scope.addPassenger = function() {
 		if ($scope.addPassengerStartLevel && $scope.addPassengerDestinationLevel) {
 			$scope.simulation.addPassenger($scope.addPassengerStartLevel, $scope.addPassengerDestinationLevel);
@@ -43,6 +47,15 @@ controller('IndexController',
 	$scope.setElevatorUp = function(up) {
 		$scope.simulation.setElevatorDirection($scope.updateElevatorNumber, up);
 	};
+	
+	$scope.addPickupStopToElevator = function(goingUp) {
+		$scope.simulation.addPickupStopToElevator($scope.updateElevatorNumber, $scope.updateElevatorLevel, goingUp);
+	};
+	
+	$scope.addDropoffStopToElevator = function() {
+		$scope.simulation.addDropoffStopToElevator($scope.updateElevatorNumber, $scope.updateElevatorLevel);
+	};
+	
 	
 	/*
 	$scope.testScope = "testing scope";

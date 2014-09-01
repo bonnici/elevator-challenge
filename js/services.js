@@ -31,6 +31,8 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     	if (!settings || !settings.numElevators || !settings.numFloors) {
     		return;
     	}
+    	
+    	this.stop();
 		
 		makeElevators.call(this, settings.numElevators);
 		makeFloors.call(this, settings.numFloors);
@@ -44,8 +46,16 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
 			initElevatorCurrentFloor.call(this, groundFloor);
 		}
 		
+		Logger.clearLogs();
 		Logger.log("Simulation", "0", "Initialized simulation with " + settings.numElevators 
 			+ " elevators and " + settings.numFloors + " floors.");
+    };
+    
+    Simulation.prototype.stop = function() {
+		stopElevators.call(this);
+		stopPassengers.call(this);
+		
+		Logger.log("Simulation", "0", "Stopped simulation.");
     };
     
     Simulation.prototype.addPassenger = function(startLevel, destinationLevel) {
@@ -62,31 +72,6 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     	}
     };
     
-    // Temporary function to run some code
-    Simulation.prototype.testSomething = function() {
-    	/*
-    	// This would usually be done by the passenger using mutex
-    	var passenger = this.passengers[0];
-    	var elevator = this.elevators[0];
-    	delete passenger.currentFloor.passengersOnFloor[passenger.passengerNum];
-    	passenger.currentFloor = null;
-    	passenger.currentElevator = elevator;
-    	elevator.passengersOnElevator[passenger.passengerNum] = passenger;
-    	
-    	elevator.doorMutex.claim();
-    	elevator.elevatorState = Enums.ElevatorState.Open;
-		elevator.direction = Enums.ElevatorDirection.Up;
-		passenger.passengerState = Enums.PassengerState.WaitingForFloor;
-		*/
-		this.elevators[0].direction = Enums.ElevatorDirection.Up;
-		if (this.elevators[0].elevatorState == Enums.ElevatorState.Open) {
-			this.elevators[0].elevatorState = Enums.ElevatorState.Closed;
-		} 
-		else {
-			this.elevators[0].elevatorState = Enums.ElevatorState.Open;
-		}
-    };
-    
     Simulation.prototype.getFloorForLevel = function(level) {
     	var floorIndex = level - 1;
     	if (floorIndex >= 0 && floorIndex < this.floors.length) {
@@ -96,7 +81,7 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     	}
     };
     
-    // temporary
+    // temporary? could keep for a "manual mode" - option to disable selector or all elevator movements
     Simulation.prototype.openElevator = function(elevatorNum) {
     	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
     		this.elevators[elevatorNum].elevatorState = Enums.ElevatorState.Open;
@@ -125,6 +110,24 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     		setElevatorOnFloor.call(this, this.elevators[elevatorNum], this.getFloorForLevel(level));
     	}
     };
+    Simulation.prototype.addPickupStopToElevator = function(elevatorNum, level, goingUp) {
+    	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
+    		this.elevators[elevatorNum].addPickupStop(this.getFloorForLevel(level), goingUp);
+    	}
+    };
+    Simulation.prototype.addDropoffStopToElevator = function(elevatorNum, level) {
+    	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
+    		this.elevators[elevatorNum].addDropoffStopIfNeeded(this.getFloorForLevel(level));
+    	}
+    };
+    
+    function stopElevators() {
+    	if (this.elevators) {
+	    	for (var i=0; i < this.elevators.length; i++) {
+	    		this.elevators[i].clearStateTimer();
+	    	}
+    	}
+    }
     
     function makeElevators(numElevators) {
     	this.elevators = this.elevators || [];
@@ -141,6 +144,22 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     	
     	for (var i=0; i < numFloors; i++) {
     		this.floors.push(new Floor(i));
+    	}
+    	
+    	// Set up floors above/below
+    	for (var i=0; i < numFloors - 1; i++) {
+    		this.floors[i].floorAbove = this.floors[i+1];
+    	}
+    	for (var i=1; i < numFloors; i++) {
+    		this.floors[i].floorBelow = this.floors[i-1];
+    	}
+    }
+    
+    function stopPassengers() {
+    	if (this.passengers) {
+	    	for (var i=0; i < this.passengers.length; i++) {
+	    		this.passengers[i].clearStateTimer();
+	    	}
     	}
     }
     
@@ -238,7 +257,8 @@ factory('ElevatorMutex', ['Logger', function(Logger) {
 	return ElevatorMutex;
 }]).
 
-factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums, ElevatorMutex) {
+factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorStateTransition', 
+	function($timeout, Logger, Enums, ElevatorMutex, ElevatorStateTransition) {
 	
 	var Elevator = function(elevatorNum) {
 		this.elevatorNum = elevatorNum;
@@ -246,16 +266,33 @@ factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums,
 		this.doorMutex = new ElevatorMutex();
 		this.currentFloor = null;
 		this.direction = Enums.ElevatorDirection.Stationary;
-		this.pickupStops = [];
-		this.dropoffStops = [];
 		this.passengersOnElevator = {};
+		this.lastSensorTrigger = null; // The last time someone walked through the door
+		// Pickup stops are added by the elevator selector, dropoff stops are added by passengers
+		this.pickupGoingUpStops = [];
+		this.pickupGoingDownStops = [];
+		this.dropoffStops = [];
+		
+		// Don't immediately update state so the simulation can do initialization
+		var self = this;
+		this.updateStateTimeout = $timeout(function() {
+			updateState.call(self);
+		}, 1000);
+    };
+    
+    Elevator.prototype.clearStateTimer = function() {
+    	if (this.updateStateTimeout) {
+    		$timeout.cancel(this.updateStateTimeout);
+    	}
     };
     
     Elevator.prototype.initPickupDropoffStops = function(numFloors) {
-    	this.pickupStops.length = 0;
+    	this.pickupGoingUpStops.length = 0;
+    	this.pickupGoingDownStops.length = 0;
     	this.dropoffStops.length = 0;
     	for (var i=0; i < numFloors; i++) {
-    		this.pickupStops.push(false);
+    		this.pickupGoingUpStops.push(false);
+    		this.pickupGoingDownStops.push(false);
     		this.dropoffStops.push(false);
     	}
     };
@@ -272,9 +309,38 @@ factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums,
     	}
     };
     
+    Elevator.prototype.removeDropoffStop = function(floor) {
+    	if (floor) {
+			this.dropoffStops[floor.floorNum] = false;
+    	}
+    };
+    
+    Elevator.prototype.addPickupStop = function(floor, goingUp) {
+    	if (floor) {
+    		if (goingUp) {
+				this.pickupGoingUpStops[floor.floorNum] = true;
+    		}
+    		else {
+				this.pickupGoingDownStops[floor.floorNum] = true;
+    		}
+    	}
+    };
+    
+    Elevator.prototype.removePickupStop = function(floor, goingUp) {
+    	if (floor) {
+    		if (goingUp) {
+				this.pickupGoingUpStops[floor.floorNum] = false;
+    		}
+    		else {
+				this.pickupGoingDownStops[floor.floorNum] = false;
+    		}
+    	}
+    };
+    
     Elevator.prototype.addPassengerOnElevator = function(passenger) {
     	if (passenger) {
     		this.passengersOnElevator[passenger.passengerNum] = passenger;
+    		this.lastSensorTrigger = new Date().getTime();
     	}
     };
     
@@ -288,6 +354,145 @@ factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums,
 		return this.elevatorState == Enums.ElevatorState.Open && this.currentFloor == floor;
     };
     
+    // Check to see if the elevator should stop at the current floor, given that it going to keep travelling in its 
+    // current direction. If this returns false, we can then check to see if the elevator should change directions.
+    Elevator.prototype.hasPickupDropoffOnCurrentFloor = function() {
+    	if (!this.currentFloor) {
+    		return false;
+    	}
+    	
+    	for (var i=0; i < this.dropoffStops.length; i++) {
+    		if (this.dropoffStops[this.currentFloor.floorNum]) {
+    			return true;
+    		}
+    	}
+    	
+    	this.setPickupDirectionIfStationary();
+    	
+    	var pickupStopsToCheck = [];
+    	if (this.direction == Enums.ElevatorDirection.Up) {
+    		pickupStopsToCheck = this.pickupGoingUpStops;
+    	}
+    	else if (this.direction == Enums.ElevatorDirection.Down) {
+    		pickupStopsToCheck = this.pickupGoingDownStops;
+    	}
+    	for (var i=0; i < pickupStopsToCheck.length; i++) {
+    		if (pickupStopsToCheck[this.currentFloor.floorNum]) {
+    			return true;
+    		}
+    	}
+    	return false;
+    };
+    
+    Elevator.prototype.sensorTriggeredRecently = function() {
+    	var cutoffTime = new Date().getTime() - 2000;
+    	return this.lastSensorTrigger && this.lastSensorTrigger > cutoffTime;
+    };
+    
+    // Just finished picking up & dropping off passengers on this floor so clear pickup and dropoff stops and reset up 
+    // button state on floor.
+    Elevator.prototype.closedOnCurrentFloor = function() {
+    	if (!this.currentFloor) {
+    		return;
+    	}
+    	
+    	if (this.direction == Enums.ElevatorDirection.Up) {
+    		this.currentFloor.upPressed = false;
+    		this.removePickupStop(this.currentFloor, true);
+    	}
+    	else if (this.direction == Enums.ElevatorDirection.Down) {
+    		this.currentFloor.downPressed = false;
+    		this.removePickupStop(this.currentFloor, false);
+    	}
+    	this.removeDropoffStop(this.currentFloor);
+    };
+    
+    // If the elevator is stationary and about to pick up passengers, make sure we have a direction set so the 
+    // passengers know if they should enter. If pickups exist for both directions pick one at random to avoid any bias.
+    Elevator.prototype.setPickupDirectionIfStationary = function() {
+    	if (this.direction == Enums.ElevatorDirection.Stationary) {
+    		var hasUpPickup = this.pickupGoingUpStops[this.currentFloor.floorNum];
+    		var hasDownPickup = this.pickupGoingDownStops[this.currentFloor.floorNum];
+    		
+    		if (hasUpPickup && hasDownPickup) {
+				this.direction = (Math.random() > 0.5 ? Enums.ElevatorDirection.Up : Enums.ElevatorDirection.Down);
+    		}
+    		else if (hasUpPickup) {
+    			this.direction = Enums.ElevatorDirection.Up;
+    		}
+    		else if (hasDownPickup) {
+    			this.direction = Enums.ElevatorDirection.Down;
+    		}
+    	}
+    };
+    
+    // Move to the next floor up and update direction
+    Elevator.prototype.changeFloorUp = function() {
+    	this.direction = Enums.ElevatorDirection.Up;
+    	
+    	var nextFloorUp = this.currentFloor.floorAbove;
+    	changeToFloor.call(this, nextFloorUp);
+    };
+    
+    // Move to the next floor down and update direction
+    Elevator.prototype.changeFloorDown = function() {
+    	this.direction = Enums.ElevatorDirection.Down;
+    	
+    	var nextFloorDown = this.currentFloor.floorBelow;
+    	changeToFloor.call(this, nextFloorDown);
+    };
+    
+    Elevator.prototype.hasDropoffAbove = function() {
+    	return findStopBetween(this.dropoffStops, this.currentFloor.floorNum + 1, this.dropoffStops.length - 1);
+    };
+    
+    Elevator.prototype.hasDropoffBelow = function() {
+    	return findStopBetween(this.dropoffStops, 0, this.currentFloor.floorNum - 1);
+    };
+    
+    Elevator.prototype.hasUpPickupAbove = function() {
+    	return findStopBetween(this.pickupGoingUpStops, this.currentFloor.floorNum + 1, this.dropoffStops.length - 1);
+    };
+    
+    Elevator.prototype.hasDownPickupBelow = function() {
+    	return findStopBetween(this.pickupGoingDownStops, 0, this.currentFloor.floorNum - 1);
+    };
+    
+    // Find the direction of the pickup stop closest to the current floor, assuming there are no pickups on this floor
+    Elevator.prototype.findClosestPickup = function() {
+    	var numFloors = this.pickupGoingUpStops.length;
+    	// Fan out from the current floor, randomly choosing whether to check up or down first at each layer
+    	for (var floorsAwayFromCurrent = 1; floorsAwayFromCurrent < numFloors; floorsAwayFromCurrent++) {
+    		var checkingFloorAboveFirst = Math.random() > 0.5;
+    		if (checkingFloorAboveFirst) {
+				if (this.hasAnyPickupAtFloor(this.currentFloor.floorNum + floorsAwayFromCurrent)) {
+					return Enums.ElevatorDirection.Up;
+				}
+				if (this.hasAnyPickupAtFloor(this.currentFloor.floorNum - floorsAwayFromCurrent)) {
+					return Enums.ElevatorDirection.Down;
+				}
+    		}
+    		else {
+				if (this.hasAnyPickupAtFloor(this.currentFloor.floorNum - floorsAwayFromCurrent)) {
+					return Enums.ElevatorDirection.Down;
+				}
+				if (this.hasAnyPickupAtFloor(this.currentFloor.floorNum + floorsAwayFromCurrent)) {
+					return Enums.ElevatorDirection.Up;
+				}
+    		}
+    	}
+    	
+    	// No pickup floors found
+    	return Enums.ElevatorDirection.Stationary;
+    };
+    
+    Elevator.prototype.hasAnyPickupAtFloor = function(floorNum) {
+    	if (floorNum < 0 || floorNum >= this.pickupGoingUpStops.length) {
+    		return false;
+    	}
+    	return this.pickupGoingUpStops[floorNum] || this.pickupGoingDownStops[floorNum];
+    };
+    
     // Probably temporary
     Elevator.prototype.passengersOnElevatorToString = function() {
     	var result = "[";
@@ -298,7 +503,161 @@ factory('Elevator', ['Logger', 'Enums', 'ElevatorMutex', function(Logger, Enums,
     	return result;
     };
     
+    function updateState() {
+    	var timeInNewState = ElevatorStateTransition.transitionToNextState(this);
+    	if (timeInNewState) {
+			var self = this;
+			this.updateStateTimeout = $timeout(function() {
+				updateState.call(self);
+			}, timeInNewState);
+    	}
+    }
+    
+    // Helper function to find a pickup or dropoff stop between two floors
+    function findStopBetween(stops, start, endInclusive) {
+    	for (var i = start; i <= endInclusive; i++) {
+    		if (stops[i]) {
+    			return true;
+    		}
+    	}
+		return false;
+    }
+    
+    function changeToFloor(toFloor) {
+    	if (toFloor) {
+    		this.currentFloor.setElevatorSlot(this.elevatorNum, null);
+    		this.currentFloor = toFloor;
+    		this.currentFloor.setElevatorSlot(this.elevatorNum, this);
+    	}
+    }
+    
 	return Elevator;
+}]).
+
+// This service handles the logic for the transition between states of an elevator. It returns the time that should be 
+// spent in the new state, or null if no more state transitions should occur.
+service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
+	// elevator must not be null
+	this.transitionToNextState = function(elevator) {
+		switch (elevator.elevatorState) {
+			case Enums.ElevatorState.Open: 
+				return transitionFromOpen(elevator);
+				
+			case Enums.ElevatorState.Closed:
+				return transitionFromClosed(elevator);
+				
+			case Enums.ElevatorState.UpTowards:
+				return transitionFromUpTowards(elevator);
+				
+			case Enums.ElevatorState.DownTowards:
+				return transitionFromDownTowards(elevator);
+		}
+		
+		log(elevator.elevatorNum, "Unexpected state");
+		return null;
+	};
+    
+    // If the last sensor trigger was recent, people may still be waiting to get on the elevator so stay open for a
+    // while longer. Otherwise close the door.
+    function transitionFromOpen(elevator) {
+		if (elevator.sensorTriggeredRecently()) {
+			log(elevator.elevatorNum, "Sensor was triggered recently, so stay open");
+			elevator.elevatorState = Enums.ElevatorState.Open;
+			return 2000;
+		}
+		else {
+			log(elevator.elevatorNum, "Sensor was not triggered recently, so close the door");
+			elevator.closedOnCurrentFloor();
+			elevator.elevatorState = Enums.ElevatorState.Closed;
+			return 1000;
+		}
+    }
+    
+    // If the elevator is on a floor that has people to pick up or drop off, open the door. Otherwise stay closed.
+    function transitionFromClosed(elevator) {
+    	
+    	// First check for pickup on this floor, setting our direction before opening the door if we are stationary
+    	
+		if (elevator.hasPickupDropoffOnCurrentFloor()) {
+			log(elevator.elevatorNum, "Need to pick up or drop off on this floor, so open the door");
+			elevator.elevatorState = Enums.ElevatorState.Open;
+			return 4000;
+		}
+		
+		// Next check for dropoffs or pickups going in the same direction we are going
+		
+		// If we have a dropoff or an up pickup above and are heading up, go up
+		if (elevator.direction == Enums.ElevatorDirection.Up && (elevator.hasDropoffAbove() || elevator.hasUpPickupAbove())) {
+			log(elevator.elevatorNum, "Going up with stops above, heading up");
+			elevator.changeFloorUp();
+			elevator.elevatorState = Enums.ElevatorState.UpTowards;
+			return 4000;
+		}
+		
+		// If we have a dropoff or a down pickup below and are heading down, go down
+		if (elevator.direction == Enums.ElevatorDirection.Down && (elevator.hasDropoffBelow() || elevator.hasDownPickupBelow())) {
+			log(elevator.elevatorNum, "Going down with stops below, heading down");
+			elevator.changeFloorDown();
+			elevator.elevatorState = Enums.ElevatorState.DownTowards;
+			return 4000;
+		}
+		
+		// Next prioritize dropoffs, changing direction if we need to
+		
+		// If we have dropoff above, head up
+		if (elevator.hasDropoffAbove()) {
+			log(elevator.elevatorNum, "No stops on the way but dropoff above, heading up");
+			elevator.changeFloorUp();
+			elevator.elevatorState = Enums.ElevatorState.UpTowards;
+			return 4000;
+		}
+		
+		// If we have dropoff below, head down
+		if (elevator.hasDropoffBelow()) {
+			log(elevator.elevatorNum, "No stops on the way but dropoff below, heading down");
+			elevator.changeFloorDown();
+			elevator.elevatorState = Enums.ElevatorState.DownTowards;
+			return 4000;
+		}
+		
+		// Now we know we have no pickups/dropoffs in the direction we're on right now, and no pending dropoffs, so
+		// look for the closest pickup stop and head in that direction
+		var direction = elevator.findClosestPickup();
+		if (direction == Enums.ElevatorDirection.Up) {
+			log(elevator.elevatorNum, "No dropoffs left but closest pickup is above, heading up");
+			elevator.changeFloorUp();
+			elevator.elevatorState = Enums.ElevatorState.UpTowards;
+			return 4000;
+		}
+		else if (direction == Enums.ElevatorDirection.Down) {
+			log(elevator.elevatorNum, "No dropoffs left but closest pickup is below, heading down");
+			elevator.changeFloorDown();
+			elevator.elevatorState = Enums.ElevatorState.DownTowards;
+			return 4000;
+		}
+		
+		// Otherwise we have no pickups or dropoffs, stay closed and set direction to stationary
+		//log(elevator.elevatorNum, "No-one to pick up or drop off, stay closed");
+		elevator.direction = Enums.ElevatorDirection.Stationary;
+		elevator.elevatorState = Enums.ElevatorState.Closed;
+		return 1000;
+    }
+    
+    function transitionFromUpTowards(elevator) {
+    	// Just set state as Closed and let that transition do its thing, not really needed but adds a nice graphical touch
+		elevator.elevatorState = Enums.ElevatorState.Closed;
+		return 1000;
+    }
+    
+    function transitionFromDownTowards(elevator) {
+    	// Just set state as Closed and let that transition do its thing, not really needed but adds a nice graphical touch
+		elevator.elevatorState = Enums.ElevatorState.Closed;
+		return 1000;
+    }
+    
+    function log(elevatorNum, message) {
+		Logger.log("ElevatorStateTransition", elevatorNum, message);
+    }
 }]).
 
 factory('Floor', ['Logger', 'Enums', function(Logger, Enums) {
@@ -309,6 +668,8 @@ factory('Floor', ['Logger', 'Enums', function(Logger, Enums) {
 		this.downPressed = false;
 		this.passengersOnFloor = {};
 		this.elevatorSlots = []; // Holds reference to elevator if it's on the floor, null otherwise
+		this.floorAbove = null; // Assumed to be initialized after construction
+		this.floorBelow = null; // Assumed to be initialized after construction
     };
     
     Floor.prototype.getLevel = function() {
@@ -406,9 +767,15 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
 		
 		// Don't immediately update state so the simulation can do initialization
 		var self = this;
-		$timeout(function() {
+		this.updateStateTimeout = $timeout(function() {
 			updateState.call(self);
 		}, 1000);
+    };
+    
+    Passenger.prototype.clearStateTimer = function() {
+    	if (this.updateStateTimeout) {
+    		$timeout.cancel(this.updateStateTimeout);
+    	}
     };
     
     Passenger.prototype.setEndTime = function() {
@@ -449,8 +816,8 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
     	}
     };
     
-    // Press the button to call for an elevator if it hasn't already been pressed.
-    // Returns true if the button was pressed.
+    // Press the button to call for an elevator if it hasn't already been pressed. Returns true if the button was 
+    // pressed.
     Passenger.prototype.callElevator = function() {
     	if (!this.currentFloor) {
     		return false;
@@ -524,12 +891,11 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
     	this.currentElevator = null;
     };
     
-    
     function updateState() {
     	var timeInNewState = PassengerStateTransition.transitionToNextState(this);
     	if (timeInNewState) {
 			var self = this;
-			$timeout(function() {
+			this.updateStateTimeout = $timeout(function() {
 				updateState.call(self);
 			}, timeInNewState);
     	}
@@ -551,44 +917,43 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
 	return Passenger;
 }]).
 
-// This service handles the logic for the transition between states of a passenger. 
-// It returns the time that should be spent in the new state, or null if no more state
-// transitions should occur.
+// This service handles the logic for the transition between states of a passenger. It returns the time that should be 
+// spent in the new state, or null if no more state transitions should occur.
 service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 	// passenger must not be null
 	this.transitionToNextState = function(passenger) {
 		switch (passenger.passengerState) {
 			case Enums.PassengerState.JoiningSim: 
-				return transitionJoiningSim(passenger);
+				return transitionFromJoiningSim(passenger);
 				
 			case Enums.PassengerState.WaitingForElevator:
-				return transitionWaitingForElevator(passenger);
+				return transitionFromWaitingForElevator(passenger);
 				
 			case Enums.PassengerState.EnteringElevator:
-				return transitionEnteringElevator(passenger);
+				return transitionFromEnteringElevator(passenger);
 				
 			case Enums.PassengerState.WaitingToEnterElevator:
-				return transitionWaitingToEnterElevator(passenger);
+				return transitionFromWaitingToEnterElevator(passenger);
 				
 			case Enums.PassengerState.WaitingForFloor:
-				return transitionWaitingForFloor(passenger);
+				return transitionFromWaitingForFloor(passenger);
 				
 			case Enums.PassengerState.WaitingToExitElevator:
-				return transitionWaitingToExitElevator(passenger);
+				return transitionFromWaitingToExitElevator(passenger);
 				
 			case Enums.PassengerState.ExitingElevator:
-				return transitionExitingElevator(passenger);
+				return transitionFromExitingElevator(passenger);
 				
 			case Enums.PassengerState.ReachedDestination:
-				return transitionReachedDestination(passenger);
+				return transitionFromReachedDestination(passenger);
 		}
 		
-		Logger.log("PassengerStateTransition", passenger.passengerNum, "Unexpected state");
+		log(passenger.passengerNum, "Unexpected state");
 		return null;
 	};
     
     // Passenger has just been added to the simulation, enter an elevator or call for one.
-    function transitionJoiningSim(passenger) {
+    function transitionFromJoiningSim(passenger) {
     	// If for some reason they are on their destination floor, transition to ReachedDestination state
     	if (passenger.currentFloor == passenger.destinationFloor) {
     		log(passenger.passengerNum, "Passenger was already on their destination floor");
@@ -602,9 +967,9 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 		return 100;
     }
     
-    // Passenger is waiting for an elevator, open any available elevators going in the right direction
-    // or call for an elevator if needed
-    function transitionWaitingForElevator(passenger) {
+    // Passenger is waiting for an elevator, open any available elevators going in the right direction or call for an 
+    // elevator if needed
+    function transitionFromWaitingForElevator(passenger) {
     	if (!passenger.currentFloor) {
 			log(passenger.passengerNum, "Invalid state, passengers waiting for an elevator should be on a floor");
 			return null;
@@ -631,7 +996,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 				log(passenger.passengerNum, "Called for an elevator");
 	    	}
 	    	else {
-				log(passenger.passengerNum, "Waiting for an elevator");
+				//log(passenger.passengerNum, "Waiting for an elevator");
 	    	}
 	    	
 			passenger.passengerState = Enums.PassengerState.WaitingForElevator;
@@ -640,7 +1005,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     }
 	
 	// Passenger has just entered an elevator, release the door mutex
-    function transitionEnteringElevator(passenger) {
+    function transitionFromEnteringElevator(passenger) {
     	if (!passenger.currentElevator) {
 			log(passenger.passengerNum, "Invalid state, passengers entering an elevator should be on an elevator");
 			return null;
@@ -652,9 +1017,9 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 		return 100;
     }
 	
-	// Passenger could not claim an elevator index but will try again as long as there is
-	// still an open elevator on the floor
-    function transitionWaitingToEnterElevator(passenger) {
+	// Passenger could not claim an elevator index but will try again as long as there is still an open elevator on the 
+	// floor
+    function transitionFromWaitingToEnterElevator(passenger) {
     	if (!passenger.currentFloor) {
 			log(passenger.passengerNum, "Invalid state, passengers waiting to enter an elevator should be on a floor");
 			return null;
@@ -681,9 +1046,9 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     	}
     }
     
-    // Passenger is on the elevator waiting for it to reach their floor, when it does,
-    // try to exit the elevator. If the passenger's target floor is not a dropoff, add it.
-    function transitionWaitingForFloor(passenger) {
+    // Passenger is on the elevator waiting for it to reach their floor, when it does, try to exit the elevator. If the 
+    // passenger's target floor is not a dropoff, add it.
+    function transitionFromWaitingForFloor(passenger) {
     	if (!passenger.currentElevator) {
 			log(passenger.passengerNum, "Invalid state, passengers waiting for a floor should be on an elevator");
 			return null;
@@ -691,12 +1056,12 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     	
     	if (passenger.isStoppedAtDestination()) {
 	    	if (passenger.tryToLeaveElevator()) {
-    			log(passenger.passengerNum, "Got to destination floor and started exiting elevator");
+    			log(passenger.passengerNum, "On destination floor and started exiting elevator");
 				passenger.passengerState = Enums.PassengerState.ExitingElevator;
 				return 500;
 	    	} 
 	    	else {
-    			log(passenger.passengerNum, "Got to destination floor but could not exit elevator");
+    			log(passenger.passengerNum, "On destination floor but could not exit elevator");
 				passenger.passengerState = Enums.PassengerState.WaitingToExitElevator;
 				
 				var randomDelay = Math.floor(Math.random() * 100);
@@ -710,7 +1075,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 				log(passenger.passengerNum, "Added destination floor as dropoff");
 	    	}
 	    	else {
-				log(passenger.passengerNum, "Waiting for elevator to get to destination");
+				//log(passenger.passengerNum, "Waiting for elevator to get to destination");
 	    	}
 	    	
 			passenger.passengerState = Enums.PassengerState.WaitingForFloor;
@@ -719,7 +1084,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     }
     
     // Passenger tried to exit but the door was taken, wait a bit and try again
-    function transitionWaitingToExitElevator(passenger) {
+    function transitionFromWaitingToExitElevator(passenger) {
     	if (!passenger.currentElevator) {
 			log(passenger.passengerNum, "Invalid state, passengers waiting to exit an elevator should be on an elevator");
 			return null;
@@ -747,20 +1112,20 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
     }
     
     // Passenger claimed to elevator door mutex and is exiting the elevator
-    function transitionExitingElevator(passenger) {
+    function transitionFromExitingElevator(passenger) {
     	if (!passenger.currentElevator) {
 			log(passenger.passengerNum, "Invalid state, passengers exiting an elevator should be on an elevator");
 			return null;
     	}
     	
-		log(passenger.passengerNum, "Reached destination and exited");
+		log(passenger.passengerNum, "Exited the elevator");
     	passenger.setAsExited();
 		passenger.passengerState = Enums.PassengerState.ReachedDestination;
 		return 100;
     }
     
     // Passenger reached their target floor, all done!
-    function transitionReachedDestination(passenger) {
+    function transitionFromReachedDestination(passenger) {
 		log(passenger.passengerNum, "Passenger has reached their destination!");
     	passenger.setDone();
     	return null;

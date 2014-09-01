@@ -31,7 +31,8 @@
 			<input type="number" class="form-control" id="resetSimFloors" ng-model="resetSimFloors" placeholder="Num Floors">
 		</div>
 		<button type="submit" class="btn btn-default" ng-click="resetSimulation()">Reset</button>
-		<!-- todo form validation - must exist, must be numbers -->
+		<button type="submit" class="btn btn-default" ng-click="stopSimulation()">Stop</button>
+		<!-- todo form validation - must exist, must be numbers, num elevators must be >= 1, num floors must be >= 2 -->
 	</form>
 
 	<form class="form-inline" role="form">
@@ -44,7 +45,7 @@
 			<input type="number" class="form-control" id="addPassengerDestinationLevel" ng-model="addPassengerDestinationLevel" placeholder="Destination Level">
 		</div>
 		<button type="submit" class="btn btn-default" ng-click="addPassenger()">Add Passenger</button>
-		<!-- todo form validation - must exist, must be numbers, can't be on the same floor, must be within floor limits -->
+		<!-- todo form validation - must exist, must be numbers, must be within floor limits -->
 	</form>
 
 	<form class="form-inline" role="form">
@@ -62,10 +63,9 @@
 		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(true)">Set as Up</button>
 		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(false)">Set as Down</button>
 		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(null)">Set as Stationary</button>
-	</form>
-
-	<form class="form-inline" role="form">
-		<button type="submit" class="btn btn-default" ng-click="testSomething()">Test Something</button>
+		<button type="submit" class="btn btn-default" ng-click="addPickupStopToElevator(true)">Pickup Going Up</button>
+		<button type="submit" class="btn btn-default" ng-click="addPickupStopToElevator(false)">Pickup Going Down</button>
+		<button type="submit" class="btn btn-default" ng-click="addDropoffStopToElevator()">Add Dropoff</button>
 	</form>
 	
 	<h1>Elevators</h1>
@@ -76,7 +76,8 @@
 			Mutex: {{ elevator.doorMutex.claimed }} |
 			Current Level: {{ elevator.currentFloor.getLevel() }} |
 			Direction: {{ elevator.direction }} |
-			Pickup Stops: {{ elevator.pickupStops }} |
+			Pickup Going Up Stops: {{ elevator.pickupGoingUpStops }} |
+			Pickup Going Down Stops: {{ elevator.pickupGoingDownStops }} |
 			Dropoff Stops: {{ elevator.dropoffStops }} |
 			Passengers on Elevator: {{ elevator.passengersOnElevatorToString() }}
 		</li>
