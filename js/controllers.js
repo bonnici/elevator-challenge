@@ -7,13 +7,14 @@ controller('IndexController',
 	function($scope, Logger, Simulation, Incrementer) {
 		
 	$scope.logs = Logger.logs;
-	$scope.simulation = new Simulation({ numElevators: 3, numFloors: 6 });
+	$scope.simulation = new Simulation({ numElevators: 3, numFloors: 6, maxOccupancy: 10 });
 	
 	$scope.resetSimulation = function() {
 		if ($scope.resetSimElevators && $scope.resetSimFloors) {	
 			$scope.simulation.init({ 
 				numElevators: $scope.resetSimElevators,
-				numFloors: $scope.resetSimFloors
+				numFloors: $scope.resetSimFloors,
+				maxOccupancy: $scope.resetSimMaxOccupancy
 			});
 		}
 	};

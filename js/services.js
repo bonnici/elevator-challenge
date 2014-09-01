@@ -28,13 +28,13 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     };
     
     Simulation.prototype.init = function(settings) {
-    	if (!settings || !settings.numElevators || !settings.numFloors) {
+    	if (!settings || !settings.numElevators || !settings.numFloors || !settings.maxOccupancy) {
     		return;
     	}
     	
     	this.stop();
 		
-		makeElevators.call(this, settings.numElevators);
+		makeElevators.call(this, settings.numElevators, settings.maxOccupancy);
 		makeFloors.call(this, settings.numFloors);
 		resetPassengers.call(this);
 		
@@ -48,7 +48,7 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
 		
 		Logger.clearLogs();
 		Logger.log("Simulation", "0", "Initialized simulation with " + settings.numElevators 
-			+ " elevators and " + settings.numFloors + " floors.");
+			+ " elevators (" + settings.maxOccupancy + " max occupancy) and " + settings.numFloors + " floors.");
     };
     
     Simulation.prototype.stop = function() {
@@ -129,12 +129,12 @@ factory('Simulation', ['Logger', 'Elevator', 'Floor', 'Passenger', 'Enums',
     	}
     }
     
-    function makeElevators(numElevators) {
+    function makeElevators(numElevators, maxOccupancy) {
     	this.elevators = this.elevators || [];
     	this.elevators.length = 0;
     	
     	for (var i=0; i < numElevators; i++) {
-    		this.elevators.push(new Elevator(i));
+    		this.elevators.push(new Elevator(i, maxOccupancy));
     	}
     }
     
@@ -260,8 +260,9 @@ factory('ElevatorMutex', ['Logger', function(Logger) {
 factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorStateTransition', 
 	function($timeout, Logger, Enums, ElevatorMutex, ElevatorStateTransition) {
 	
-	var Elevator = function(elevatorNum) {
+	var Elevator = function(elevatorNum, maxOccupancy) {
 		this.elevatorNum = elevatorNum;
+		this.maxOccupancy = maxOccupancy;
 		this.elevatorState = Enums.ElevatorState.Closed;
 		this.doorMutex = new ElevatorMutex();
 		this.currentFloor = null;
@@ -295,6 +296,17 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     		this.pickupGoingDownStops.push(false);
     		this.dropoffStops.push(false);
     	}
+    };
+    
+    Elevator.prototype.isFull = function() {
+    	var passengerCount = 0;
+		for (var key in this.passengersOnElevator) {
+			if (this.passengersOnElevator.hasOwnProperty(key)) {
+				passengerCount++;
+			}
+		}
+		
+		return passengerCount >= this.maxOccupancy;
     };
     
     Elevator.prototype.addDropoffStopIfNeeded = function(floor) {
@@ -802,7 +814,7 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
     	var elevators = this.currentFloor.getOpenElevators(direction);
     	
     	for (var i=0; i < elevators.length; i++) {
-    		if (elevators[i].doorMutex.claim()) {
+    		if (!elevators[i].isFull() && elevators[i].doorMutex.claim()) {
     			enterElevator.call(this, elevators[i]);
     			return true;
     		}
