@@ -1,0 +1,15 @@
+<div>
+	<span title="Passenger Count">{{ elevator.countPassengers() }}</span>
+	<span ng-switch on="elevator.direction">
+		<span ng-switch-when="Up" class="glyphicon glyphicon-arrow-up" title="Going Up"></span>
+		<span ng-switch-when="Down" class="glyphicon glyphicon-arrow-down" title="Going Down"></span>
+		<span ng-switch-when="Stationary" class="glyphicon glyphicon-minus" title="Stationary"></span>
+	</span>
+	<span ng-switch on="elevator.stateWithBoarding()">
+		<span ng-switch-when="Open" class="glyphicon glyphicon-resize-full" title="Open"></span>
+		<span ng-switch-when="Closed" class="glyphicon glyphicon-resize-small" title="Closed"></span>
+		<span ng-switch-when="UpTowards" class="glyphicon glyphicon-chevron-up" title="Heading Up Towards This Level"></span>
+		<span ng-switch-when="DownTowards" class="glyphicon glyphicon-chevron-down" title="Heading Down Towards This Level"></span>
+		<span ng-switch-when="Boarding" class="glyphicon glyphicon-share-alt" title="Being Boarded"></span>
+	</span>
+</div>

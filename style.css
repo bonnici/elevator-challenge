@@ -1,3 +1,19 @@
 body {
-	background-color: #DDD;
+	padding-top: 60px;
+}
+
+#newSimModal .form-control, #addPassengerForm .form-control {
+	width: 150px;
+}
+
+#addPassengerForm {
+	padding: 10px;
+}
+
+.floor-table {
+	text-align: center;
+}
+
+.elevator-stops {
+	height: 60px;
 }

@@ -219,18 +219,18 @@ factory('Enums', function(Logger) {
 		ElevatorState: { 
 			Open: "Open", 
 			Closed: "Closed", 
-			UpTowards: "Moving up towards floor", 
-			DownTowards: "Moving down towards floor" 
+			UpTowards: "UpTowards", 
+			DownTowards: "DownTowards" 
 		},
 		PassengerState: { 
-			JoiningSim: "Joining simulation", 
-			WaitingForElevator: "Waiting for elevator", 
-			EnteringElevator: "Entering elevator", 
-			WaitingToEnterElevator: "Waiting to enter elevator", 
-			WaitingForFloor: "Waiting for floor", 
-			WaitingToExitElevator: "Waiting to exit elevator", 
-			ExitingElevator: "Exiting elevator", 
-			ReachedDestination: "Reached destination"
+			JoiningSim: "JoiningSim", 
+			WaitingForElevator: "WaitingForElevator", 
+			EnteringElevator: "EnteringElevator", 
+			WaitingToEnterElevator: "WaitingToEnterElevator", 
+			WaitingForFloor: "WaitingForFloor", 
+			WaitingToExitElevator: "WaitingToExitElevator", 
+			ExitingElevator: "ExitingElevator", 
+			ReachedDestination: "ReachedDestination"
 		}
 	};
 }).
@@ -301,14 +301,27 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     };
     
     Elevator.prototype.isFull = function() {
+		return this.countPassengers() >= this.maxOccupancy;
+    };
+    
+    Elevator.prototype.countPassengers = function() {
     	var passengerCount = 0;
 		for (var key in this.passengersOnElevator) {
 			if (this.passengersOnElevator.hasOwnProperty(key)) {
 				passengerCount++;
 			}
 		}
-		
-		return passengerCount >= this.maxOccupancy;
+		return passengerCount;
+    };
+    
+    // Return elevator state string if not being boarded, or "Boarding" if it is
+    Elevator.prototype.stateWithBoarding = function() {
+    	if (this.doorMutex.claimed) {
+    		return "Boarding";
+    	}
+    	else {
+    		return this.elevatorState;
+    	}
     };
     
     Elevator.prototype.addDropoffStopIfNeeded = function(floor) {
@@ -552,6 +565,18 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     	return result;
     };
     
+    Elevator.prototype.upPickupsToString = function() {
+    	return stopsString(this.pickupGoingUpStops);
+    };
+    
+    Elevator.prototype.downPickupsToString = function() {
+    	return stopsString(this.pickupGoingDownStops);
+    };
+    
+    Elevator.prototype.dropoffsToString = function() {
+    	return stopsString(this.dropoffStops);
+    };
+    
     function updateState() {
     	var timeInNewState = ElevatorStateTransition.transitionToNextState(this);
     	if (timeInNewState) {
@@ -570,6 +595,16 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     		}
     	}
 		return false;
+    }
+    
+    function stopsString(stops) {
+    	var stopsList = [];
+    	for (var i = 0; i <= stops.length; i++) {
+    		if (stops[i]) {
+    			stopsList.push(i+1);
+    		}
+    	}
+    	return stopsList.join(", ");
     }
     
     function changeToFloor(toFloor) {
@@ -819,6 +854,26 @@ factory('Floor', ['Logger', 'ElevatorSelector', 'Enums', function(Logger, Elevat
     	return this.floorNum + 1;
     };
     
+    Floor.prototype.countPassengersGoingUp = function() {
+    	var count = 0;
+    	for (var passenger in this.passengersOnFloor) {
+    		if (this.passengersOnFloor[passenger].getDirection() == Enums.ElevatorDirection.Up) {
+    			count++;
+    		}
+    	}
+    	return count;
+    };
+    
+    Floor.prototype.countPassengersGoingDown = function() {
+    	var count = 0;
+    	for (var passenger in this.passengersOnFloor) {
+    		if (this.passengersOnFloor[passenger].getDirection() == Enums.ElevatorDirection.Down) {
+    			count++;
+    		}
+    	}
+    	return count;
+    };
+    
     Floor.prototype.initElevatorSlots = function(numElevators) {
     	this.elevatorSlots.length = 0;
     	for (var i=0; i < numElevators; i++) {
@@ -919,6 +974,20 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
     	if (this.updateStateTimeout) {
     		$timeout.cancel(this.updateStateTimeout);
     	}
+    };
+    
+    Passenger.prototype.getTravelTime = function() {
+    	if (!this.startTime || !this.endTime) {
+    		return null;
+    	}
+    	return (this.endTime - this.startTime) / 1000;
+    };
+    
+    Passenger.prototype.getElevatorString = function() {
+    	if (!this.currentElevator) {
+    		return null;
+    	}
+    	return this.currentElevator.elevatorNum + 1;
     };
     
     Passenger.prototype.setEndTime = function() {

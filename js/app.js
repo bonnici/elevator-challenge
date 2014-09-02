@@ -3,5 +3,6 @@
 angular.module('elevatorSim', [
 	'elevatorSim.controllers',
 	'elevatorSim.services',
-	'elevatorSim.filters'
+	'elevatorSim.filters',
+	'elevatorSim.directives'
 ]);

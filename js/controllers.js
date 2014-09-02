@@ -8,13 +8,17 @@ controller('IndexController', ['$scope', 'Logger', 'Simulation', function($scope
 	$scope.simulation = new Simulation({ numElevators: 3, numFloors: 6, maxOccupancy: 10 });
 	
 	$scope.resetSimulation = function() {
-		if ($scope.resetSimElevators && $scope.resetSimFloors) {	
+		if ($scope.resetSimElevators >= 1 && $scope.resetSimFloors >= 2 && $scope.resetSimMaxOccupancy >= 1) {	
 			$scope.simulation.init({ 
 				numElevators: $scope.resetSimElevators,
 				numFloors: $scope.resetSimFloors,
 				maxOccupancy: $scope.resetSimMaxOccupancy
 			});
 		}
+		
+		$scope.resetSimElevators = "";
+		$scope.resetSimFloors = "";
+		$scope.resetSimMaxOccupancy = "";
 	};
 	
 	$scope.stopSimulation = function() {
@@ -22,7 +26,9 @@ controller('IndexController', ['$scope', 'Logger', 'Simulation', function($scope
 	};
 	
 	$scope.addPassenger = function() {
-		if ($scope.addPassengerStartLevel && $scope.addPassengerDestinationLevel) {
+		if ($scope.addPassengerStartLevel > 0 && $scope.addPassengerStartLevel <= $scope.simulation.floors.length
+			&& $scope.addPassengerDestinationLevel > 0 && $scope.addPassengerDestinationLevel <= $scope.simulation.floors.length) {
+				
 			$scope.simulation.addPassenger($scope.addPassengerStartLevel, $scope.addPassengerDestinationLevel);
 		}
 	};

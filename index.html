@@ -16,107 +16,152 @@
 	<script type="text/javascript" src="js/services.js"></script>
 	<script type="text/javascript" src="js/controllers.js"></script>
 	<script type="text/javascript" src="js/filters.js"></script>
+	<script type="text/javascript" src="js/directives.js"></script>
 	
 	<title>Sim Elevator</title>
 </head>
 <body ng-controller="IndexController">
 
-	<form class="form-inline" role="form">
-		<div class="form-group">
-			<label class="sr-only" for="resetSimElevators">Number of Elevators</label>
-			<input type="number" class="form-control" id="resetSimElevators" ng-model="resetSimElevators" placeholder="Num Elevators">
-		</div>
-		<div class="form-group">
-			<label class="sr-only" for="resetSimFloors">Number of Floors</label>
-			<input type="number" class="form-control" id="resetSimFloors" ng-model="resetSimFloors" placeholder="Num Floors">
-		</div>
-		<div class="form-group">
-			<label class="sr-only" for="resetSimMaxOccupancy">Maximum Elevator Occupancy</label>
-			<input type="number" class="form-control" id="resetSimMaxOccupancy" ng-model="resetSimMaxOccupancy" placeholder="Max Occupancy">
-		</div>
-		<button type="submit" class="btn btn-default" ng-click="resetSimulation()">Reset</button>
-		<button type="submit" class="btn btn-default" ng-click="stopSimulation()">Stop</button>
-		<!-- todo form validation - must exist, must be numbers, num elevators must be >= 1, num floors must be >= 2 -->
-	</form>
+	<nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+		<div class="container-fluid">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse-1">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span><span class="icon-bar"></span><span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand" href="#">Sim Elevator</a>
+			</div>
 
-	<form class="form-inline" role="form">
-		<div class="form-group">
-			<label class="sr-only" for="addPassengerStartLevel">Start Level</label>
-			<input type="number" class="form-control" id="addPassengerStartLevel" ng-model="addPassengerStartLevel" placeholder="Start Level">
+			<div class="collapse navbar-collapse " id="navbar-collapse-1">
+				<button type="button" class="btn btn-default navbar-btn" data-toggle="modal" data-target="#newSimModal">New Simulation</button>
+			</div>
 		</div>
-		<div class="form-group">
-			<label class="sr-only" for="addPassengerDestinationLevel">Destination Level</label>
-			<input type="number" class="form-control" id="addPassengerDestinationLevel" ng-model="addPassengerDestinationLevel" placeholder="Destination Level">
-		</div>
-		<button type="submit" class="btn btn-default" ng-click="addPassenger()">Add Passenger</button>
-		<!-- todo form validation - must exist, must be numbers, must be within floor limits -->
-	</form>
-
-	<form class="form-inline" role="form">
-		<div class="form-group">
-			<label class="sr-only" for="updateElevatorNumber">Elevator Number</label>
-			<input type="number" class="form-control" id="updateElevatorNumber" ng-model="updateElevatorNumber" placeholder="Update Elevator">
-		</div>
-		<div class="form-group">
-			<label class="sr-only" for="updateElevatorLevel">Elevator Level</label>
-			<input type="number" class="form-control" id="updateElevatorLevel" ng-model="updateElevatorLevel" placeholder="Elevator Level">
-		</div>
-		<button type="submit" class="btn btn-default" ng-click="openElevator()">Open Elevator</button>
-		<button type="submit" class="btn btn-default" ng-click="closeElevator()">Close Elevator</button>
-		<button type="submit" class="btn btn-default" ng-click="moveElevator()">Move To Floor</button>
-		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(true)">Set as Up</button>
-		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(false)">Set as Down</button>
-		<button type="submit" class="btn btn-default" ng-click="setElevatorUp(null)">Set as Stationary</button>
-		<button type="submit" class="btn btn-default" ng-click="addPickupStopToElevator(true)">Pickup Going Up</button>
-		<button type="submit" class="btn btn-default" ng-click="addPickupStopToElevator(false)">Pickup Going Down</button>
-		<button type="submit" class="btn btn-default" ng-click="addDropoffStopToElevator()">Add Dropoff</button>
-	</form>
+	</nav>
 	
-	<h1>Elevators</h1>
-	<ul>
-		<li ng-repeat="elevator in simulation.elevators">
-			Number: {{ elevator.elevatorNum }} |
-			State: {{ elevator.elevatorState }} |
-			Mutex: {{ elevator.doorMutex.claimed }} |
-			Current Level: {{ elevator.currentFloor.getLevel() }} |
-			Direction: {{ elevator.direction }} |
-			Pickup Going Up Stops: {{ elevator.pickupGoingUpStops }} |
-			Pickup Going Down Stops: {{ elevator.pickupGoingDownStops }} |
-			Dropoff Stops: {{ elevator.dropoffStops }} |
-			Passengers on Elevator: {{ elevator.passengersOnElevatorToString() }}
-		</li>
-	</ul>
-
-	<h1>Floors</h1>
-	<ul>
-		<li ng-repeat="floor in simulation.floors | reverse">
-			Number: {{ floor.floorNum }} |
-			Level: {{ floor.getLevel() }} |
-			Up Pressed: {{ floor.upPressed }} |
-			Down Pressed: {{ floor.downPressed }} |
-			Passengers on Floor: {{ floor.passengersOnFloorToString() }} |
-			Elevator Slots: {{ floor.elevatorSlotsToString() }}
-		</li>
-	</ul>
+	<div class="modal fade" id="newSimModal" tabindex="-1" role="dialog" aria-labelledby="newSimModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+					<h4 class="modal-title" id="newSimModalLabel">New Simulation Settings</h4>
+				</div>
+				<div class="modal-body">
+					<form class="form-inline" role="form">
+						<div class="form-group">
+							<label class="sr-only" for="resetSimElevators">Number of Elevators</label>
+							<input type="number" class="form-control" id="resetSimElevators" ng-model="resetSimElevators" placeholder="Num Elevators">
+						</div>
+						<div class="form-group">
+							<label class="sr-only" for="resetSimFloors">Number of Floors</label>
+							<input type="number" class="form-control" id="resetSimFloors" ng-model="resetSimFloors" placeholder="Num Floors">
+						</div>
+						<div class="form-group">
+							<label class="sr-only" for="resetSimMaxOccupancy">Maximum Elevator Occupancy</label>
+							<input type="number" class="form-control" id="resetSimMaxOccupancy" ng-model="resetSimMaxOccupancy" placeholder="Max Occupancy">
+						</div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+					<button type="button" class="btn btn-primary" data-dismiss="modal" ng-click="resetSimulation()">Apply</button>
+				</div>
+			</div>
+		</div>
+	</div>
 	
-	<h1>Passengers</h1>
-	<ul>
-		<li ng-repeat="passenger in simulation.passengers">
-			Number: {{ passenger.passengerNum }} |
-			Start Level: {{ passenger.startFloor.getLevel() }} |
-			Destination Level: {{ passenger.destinationFloor.getLevel() }} |
-			State: {{ passenger.passengerState }} |
-			Start Time: {{ passenger.startTime }} |
-			End Time: {{ passenger.endTime }} |
-			Floor Level: {{ passenger.currentFloor.getLevel() }} |
-			Elevator: {{ passenger.currentElevator.elevatorNum }}
-		</li>
-	</ul>
+	<div class="container">
 		
-	<h1>Log</h1>
-	<ul>
-		<li ng-repeat="log in logs">{{ log.timestamp }} | {{ log.type }} | {{ log.objectId }} | {{ log.message }}</li>
-	</ul>
+		<div class="row">
+			<div class="col-md-12">
+				<div>
+					<table class="floor-table table table-bordered">
+						<thead>
+							<tr>
+								<th width="1%">Level</th>
+								<th width="1%">#&nbsp;Going&nbsp;Up</th>
+								<th ng-repeat="elevator in simulation.elevators">Elevator&nbsp;{{ elevator.elevatorNum + 1 }}</th>
+								<th width="1%">#&nbsp;Going&nbsp;Down</th>
+							</tr>	
+							<tr>
+								<td></td>
+								<td></td>
+								<td ng-repeat="elevator in simulation.elevators">
+									<div elevator-stops class="elevator-stops"></div>
+								</td>
+								<td></td>
+							</tr>
+						</thead>
+						<tbody>
+							<tr ng-repeat="floor in simulation.floors | reverse">
+								<td>L{{ floor.getLevel() }}</td>
+								<td>{{ floor.countPassengersGoingUp() }}</td>
+								<td ng-repeat="elevator in floor.elevatorSlots track by $index">
+									<div ng-if="elevator" elevator-state></div>
+								</td>
+								<td>{{ floor.countPassengersGoingDown() }}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+		
+		<div class="row">
+			<div class="col-md-6">
+				<div class="panel panel-default">
+					<div class="panel-heading">
+						<h3 class="panel-title">Add Passengers</h3>
+					</div>
+					<div class="panel-body">
+						<form class="form-inline" id="addPassengerForm" role="form">
+							<div class="form-group">
+								<label class="sr-only" for="addPassengerStartLevel">Start Level</label>
+								<input type="number" class="form-control" id="addPassengerStartLevel" ng-model="addPassengerStartLevel" placeholder="Start Level">
+							</div>
+							<div class="form-group">
+								<label class="sr-only" for="addPassengerDestinationLevel">Destination Level</label>
+								<input type="number" class="form-control" id="addPassengerDestinationLevel" ng-model="addPassengerDestinationLevel" placeholder="Destination Level">
+							</div>
+							<button type="submit" class="btn btn-default" ng-click="addPassenger()">Add Single Passenger</button>
+						</form>
+					</div>
+				</div>
+			</div>
+			
+			<div class="col-md-6">
+				<div class="panel panel-default">
+					<div class="panel-heading">
+						<h3 class="panel-title">Passenger Stats</h3>
+					</div>
+					<div class="panel-body">
+						<table class="table table-condensed table-bordered">
+							<thead>
+								<tr>
+									<th>ID</th>
+									<th>Start</th>
+									<th>Dest</th>
+									<th width="100%">State</th>
+									<th>Time&nbsp;(sec)</th>
+									<th>Elevator</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr ng-repeat="passenger in simulation.passengers">
+									<td>{{ passenger.passengerNum }}</td>
+									<td>{{ passenger.startFloor.getLevel() }}</td>
+									<td>{{ passenger.destinationFloor.getLevel() }}</td>
+									<td>{{ passenger.passengerState }}</td>
+									<td>{{ passenger.getTravelTime() }}</td>
+									<td>{{ passenger.getElevatorString() }}</span></td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	
 	
 	<script>
 		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){

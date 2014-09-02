@@ -1,0 +1,11 @@
+<div>
+	<div ng-if="elevator.upPickupsToString()">
+		<span class="glyphicon glyphicon-arrow-up" title="Pickup Stops Going Up"></span>: {{ elevator.upPickupsToString() }}
+	</div>
+	<div ng-if="elevator.downPickupsToString()">
+		<span class="glyphicon glyphicon-arrow-down" title="Pickup Stops Going Down"></span>: {{ elevator.downPickupsToString() }} <br/>
+	</div>
+	<div ng-if="elevator.dropoffsToString()">
+		<span class="glyphicon glyphicon-arrow-right" title="Dropoff Stops"></span>: {{ elevator.dropoffsToString() }} <br/>
+	</div>
+</div>
