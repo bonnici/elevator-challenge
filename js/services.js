@@ -20,15 +20,15 @@ service('Logger', ["$log", function($log) {
 	};
 }]).
 
-factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passenger', 'Enums', 
-	function(Logger, Elevator, ElevatorSelector, Floor, Passenger, Enums) {
+factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passenger', 'Enums', 'SimulationSpeedMultiplier', 
+	function(Logger, Elevator, ElevatorSelector, Floor, Passenger, Enums, SimulationSpeedMultiplier) {
 	
 	var Simulation = function(settings) {
 		this.init(settings);
     };
     
     Simulation.prototype.init = function(settings) {
-    	if (!settings || !settings.numElevators || !settings.numFloors || !settings.maxOccupancy) {
+    	if (!settings || !settings.numElevators || !settings.numFloors || !settings.maxOccupancy || !settings.speedMultiplier) {
     		return;
     	}
     	
@@ -46,10 +46,11 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
 			initElevatorCurrentFloor.call(this, groundFloor);
 		}
 		
+		SimulationSpeedMultiplier.multiplier = settings.speedMultiplier;
 		ElevatorSelector.elevators = this.elevators;
 		
 		Logger.clearLogs();
-		Logger.log("Simulation", "0", "Initialized simulation with " + settings.numElevators 
+		Logger.log("Simulation", "0", "Initialized " + settings.speedMultiplier + "x simulation with " + settings.numElevators 
 			+ " elevators (" + settings.maxOccupancy + " max occupancy) and " + settings.numFloors + " floors.");
     };
     
@@ -241,6 +242,10 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
 	return Simulation;
 }]).
 
+// Just holds the multiplier to use when calculating timeouts
+service('SimulationSpeedMultiplier', function() {
+	this.multiplier = null;
+}).
 
 factory('Enums', function(Logger) {
 	return {
@@ -292,8 +297,8 @@ factory('ElevatorMutex', ['Logger', function(Logger) {
 	return ElevatorMutex;
 }]).
 
-factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorStateTransition', 
-	function($timeout, Logger, Enums, ElevatorMutex, ElevatorStateTransition) {
+factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorStateTransition', 'SimulationSpeedMultiplier',
+	function($timeout, Logger, Enums, ElevatorMutex, ElevatorStateTransition, SimulationSpeedMultiplier) {
 	
 	var Elevator = function(elevatorNum, maxOccupancy) {
 		this.elevatorNum = elevatorNum;
@@ -445,7 +450,7 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
     };
     
     Elevator.prototype.sensorTriggeredRecently = function() {
-    	var cutoffTime = new Date().getTime() - 2000;
+    	var cutoffTime = new Date().getTime() - Math.ceil(3000 / SimulationSpeedMultiplier.multiplier);
     	return this.lastSensorTrigger && this.lastSensorTrigger > cutoffTime;
     };
     
@@ -653,7 +658,7 @@ factory('Elevator', ['$timeout', 'Logger', 'Enums', 'ElevatorMutex', 'ElevatorSt
 
 // This service handles the logic for the transition between states of an elevator. It returns the time that should be 
 // spent in the new state, or null if no more state transitions should occur.
-service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
+service('ElevatorStateTransition', ["Logger", "Enums", "SimulationSpeedMultiplier", function(Logger, Enums, SimulationSpeedMultiplier) {
 	// elevator must not be null
 	this.transitionToNextState = function(elevator) {
 		switch (elevator.elevatorState) {
@@ -680,13 +685,13 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 		if (elevator.sensorTriggeredRecently()) {
 			log(elevator.elevatorNum, "Sensor was triggered recently, so stay open");
 			elevator.elevatorState = Enums.ElevatorState.Open;
-			return 2000;
+			return Math.ceil(5000 / SimulationSpeedMultiplier.multiplier);
 		}
 		else {
 			log(elevator.elevatorNum, "Sensor was not triggered recently, so close the door");
 			elevator.closedOnCurrentFloor();
 			elevator.elevatorState = Enums.ElevatorState.Closed;
-			return 1000;
+			return Math.ceil(3000 / SimulationSpeedMultiplier.multiplier);
 		}
     }
     
@@ -698,7 +703,7 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 		if (elevator.hasPickupDropoffOnCurrentFloor()) {
 			log(elevator.elevatorNum, "Need to pick up or drop off on this floor, so open the door");
 			elevator.elevatorState = Enums.ElevatorState.Open;
-			return 4000;
+			return Math.ceil(1000 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// Next check for dropoffs or pickups going in the same direction we are going
@@ -708,7 +713,7 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 			log(elevator.elevatorNum, "Going up with stops above, heading up");
 			elevator.changeFloorUp();
 			elevator.elevatorState = Enums.ElevatorState.UpTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// If we have a dropoff or a down pickup below and are heading down, go down
@@ -716,7 +721,7 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 			log(elevator.elevatorNum, "Going down with stops below, heading down");
 			elevator.changeFloorDown();
 			elevator.elevatorState = Enums.ElevatorState.DownTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// Next prioritize dropoffs, changing direction if we need to
@@ -726,7 +731,7 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 			log(elevator.elevatorNum, "No stops on the way but dropoff above, heading up");
 			elevator.changeFloorUp();
 			elevator.elevatorState = Enums.ElevatorState.UpTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// If we have dropoff below, head down
@@ -734,7 +739,7 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 			log(elevator.elevatorNum, "No stops on the way but dropoff below, heading down");
 			elevator.changeFloorDown();
 			elevator.elevatorState = Enums.ElevatorState.DownTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// Now we know we have no pickups/dropoffs in the direction we're on right now, and no pending dropoffs, so
@@ -744,32 +749,32 @@ service('ElevatorStateTransition', ["Logger", "Enums", function(Logger, Enums) {
 			log(elevator.elevatorNum, "No dropoffs left but closest pickup is above, heading up");
 			elevator.changeFloorUp();
 			elevator.elevatorState = Enums.ElevatorState.UpTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		else if (direction == Enums.ElevatorDirection.Down) {
 			log(elevator.elevatorNum, "No dropoffs left but closest pickup is below, heading down");
 			elevator.changeFloorDown();
 			elevator.elevatorState = Enums.ElevatorState.DownTowards;
-			return 4000;
+			return Math.ceil(7500 / SimulationSpeedMultiplier.multiplier);
 		}
 		
 		// Otherwise we have no pickups or dropoffs, stay closed and set direction to stationary
 		//log(elevator.elevatorNum, "No-one to pick up or drop off, stay closed");
 		elevator.direction = Enums.ElevatorDirection.Stationary;
 		elevator.elevatorState = Enums.ElevatorState.Closed;
-		return 1000;
+		return Math.ceil(1000 / SimulationSpeedMultiplier.multiplier);
     }
     
     function transitionFromUpTowards(elevator) {
     	// Just set state as Closed and let that transition do its thing, not really needed but adds a nice graphical touch
 		elevator.elevatorState = Enums.ElevatorState.Closed;
-		return 1000;
+		return Math.ceil(2500 / SimulationSpeedMultiplier.multiplier);
     }
     
     function transitionFromDownTowards(elevator) {
     	// Just set state as Closed and let that transition do its thing, not really needed but adds a nice graphical touch
 		elevator.elevatorState = Enums.ElevatorState.Closed;
-		return 1000;
+		return Math.ceil(2500 / SimulationSpeedMultiplier.multiplier);
     }
     
     function log(elevatorNum, message) {
@@ -1162,7 +1167,7 @@ factory('Passenger', ['$timeout', 'Logger', 'Enums', 'PassengerStateTransition',
 
 // This service handles the logic for the transition between states of a passenger. It returns the time that should be 
 // spent in the new state, or null if no more state transitions should occur.
-service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) {
+service('PassengerStateTransition', ["Logger", "Enums", "SimulationSpeedMultiplier", function(Logger, Enums, SimulationSpeedMultiplier) {
 	// passenger must not be null
 	this.transitionToNextState = function(passenger) {
 		switch (passenger.passengerState) {
@@ -1223,14 +1228,14 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    	if (passenger.tryToEnterElevator()) {
     			log(passenger.passengerNum, "Found an open elevator and started entering it");
 				passenger.passengerState = Enums.PassengerState.EnteringElevator;
-				return 500;
+				return Math.ceil(500 / SimulationSpeedMultiplier.multiplier);
 	    	} 
 	    	else {
     			log(passenger.passengerNum, "Found an open elevator but could not enter it yet");
 				passenger.passengerState = Enums.PassengerState.WaitingToEnterElevator;
 				
 				var randomDelay = Math.floor(Math.random() * 100);
-				return 500 + randomDelay;
+				return Math.ceil((500 + randomDelay) / SimulationSpeedMultiplier.multiplier);
 	    	}
 	    }
 	    else {
@@ -1243,7 +1248,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    	}
 	    	
 			passenger.passengerState = Enums.PassengerState.WaitingForElevator;
-	    	return 1000; //todo customizable state transition times
+			return Math.ceil(1000 / SimulationSpeedMultiplier.multiplier);
 	    }
     }
 	
@@ -1257,7 +1262,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 		log(passenger.passengerNum, "Finished entering elevator");
 		passenger.releaseDoorMutex();
 		passenger.passengerState = Enums.PassengerState.WaitingForFloor;
-		return 100;
+		return Math.ceil(200 / SimulationSpeedMultiplier.multiplier);
     }
 	
 	// Passenger could not claim an elevator index but will try again as long as there is still an open elevator on the 
@@ -1272,20 +1277,20 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    if (!passenger.isElevatorOpenOnFloor()) { 
 			log(passenger.passengerNum, "Elevators closed before passenger could get on! Waiting again.");
 			passenger.passengerState = Enums.PassengerState.WaitingForElevator;
-			return 100;
+			return Math.ceil(100 / SimulationSpeedMultiplier.multiplier);
 	    }
 	    
     	if (passenger.tryToEnterElevator()) {
 			log(passenger.passengerNum, "Found an open elevator and started entering it");
 			passenger.passengerState = Enums.PassengerState.EnteringElevator;
-			return 500;
+			return Math.ceil(500 / SimulationSpeedMultiplier.multiplier);
     	} 
     	else {
 			log(passenger.passengerNum, "Found an open elevator but could not enter it yet");
 			passenger.passengerState = Enums.PassengerState.WaitingToEnterElevator;
 				
 			var randomDelay = Math.floor(Math.random() * 100);
-			return 500 + randomDelay;
+			return Math.ceil((500 + randomDelay) / SimulationSpeedMultiplier.multiplier);
     	}
     }
     
@@ -1301,14 +1306,14 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    	if (passenger.tryToLeaveElevator()) {
     			log(passenger.passengerNum, "On destination floor and started exiting elevator");
 				passenger.passengerState = Enums.PassengerState.ExitingElevator;
-				return 500;
+				return Math.ceil(500 / SimulationSpeedMultiplier.multiplier);
 	    	} 
 	    	else {
     			log(passenger.passengerNum, "On destination floor but could not exit elevator");
 				passenger.passengerState = Enums.PassengerState.WaitingToExitElevator;
 				
 				var randomDelay = Math.floor(Math.random() * 100);
-				return 500 + randomDelay;
+				return Math.ceil((500 + randomDelay) / SimulationSpeedMultiplier.multiplier);
 	    	}
     	}
     	// Otherwise press the destination floor button if needed
@@ -1322,7 +1327,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    	}
 	    	
 			passenger.passengerState = Enums.PassengerState.WaitingForFloor;
-	    	return 1000;
+			return Math.ceil(1000 / SimulationSpeedMultiplier.multiplier);
     	}
     }
     
@@ -1337,20 +1342,20 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 	    if (!passenger.isStoppedAtDestination()) { 
 			log(passenger.passengerNum, "Elevators closed before passenger could get off! Waiting for floor again.");
 			passenger.passengerState = Enums.PassengerState.WaitingForFloor;
-			return 100;
+			return Math.ceil(100 / SimulationSpeedMultiplier.multiplier);
 	    }
 	    
     	if (passenger.tryToLeaveElevator()) {
 			log(passenger.passengerNum, "Got access to elevator door and started exiting");
 			passenger.passengerState = Enums.PassengerState.ExitingElevator;
-			return 500;
+			return Math.ceil(500 / SimulationSpeedMultiplier.multiplier);
     	} 
     	else {
 			log(passenger.passengerNum, "On destination floor but could not exit elevator");
 			passenger.passengerState = Enums.PassengerState.WaitingToExitElevator;
 				
 			var randomDelay = Math.floor(Math.random() * 100);
-			return 500 + randomDelay;
+			return Math.ceil((500 + randomDelay) / SimulationSpeedMultiplier.multiplier);
     	}
     }
     
@@ -1364,7 +1369,7 @@ service('PassengerStateTransition', ["Logger", "Enums", function(Logger, Enums) 
 		log(passenger.passengerNum, "Exited the elevator");
     	passenger.setAsExited();
 		passenger.passengerState = Enums.PassengerState.ReachedDestination;
-		return 100;
+		return Math.ceil(100 / SimulationSpeedMultiplier.multiplier);
     }
     
     // Passenger reached their target floor, all done!

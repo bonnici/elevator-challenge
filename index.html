@@ -59,6 +59,21 @@
 							<label class="sr-only" for="resetSimMaxOccupancy">Maximum Elevator Occupancy</label>
 							<input type="number" class="form-control" id="resetSimMaxOccupancy" ng-model="resetSimMaxOccupancy" placeholder="Max Occupancy">
 						</div>
+						<div class="form-group">
+							<div class="dropdown">
+								<button class="btn btn-default dropdown-toggle" type="button" id="resetSimSpeed" data-toggle="dropdown">
+									{{ resetSimSelectedSpeed }}
+									<span class="caret"></span>
+								</button>
+								<ul class="dropdown-menu" role="menu" aria-labelledby="resetSimSpeed">
+									<li role="presentation"><a role="menuitem" tabindex="-1" ng-click="setResetSimMultiplier(1)">1x</a></li>
+									<li role="presentation"><a role="menuitem" tabindex="-1" ng-click="setResetSimMultiplier(2)">2x</a></li>
+									<li role="presentation"><a role="menuitem" tabindex="-1" ng-click="setResetSimMultiplier(5)">5x (default)</a></li>
+									<li role="presentation"><a role="menuitem" tabindex="-1" ng-click="setResetSimMultiplier(10)">10x</a></li>
+									<li role="presentation"><a role="menuitem" tabindex="-1" ng-click="setResetSimMultiplier(20)">20x</a></li>
+								</ul>
+							</div>
+						</div>
 					</form>
 				</div>
 				<div class="modal-footer">
