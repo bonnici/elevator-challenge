@@ -133,29 +133,50 @@
 					<div class="panel-heading">
 						<h3 class="panel-title">Passenger Stats</h3>
 					</div>
+					
 					<div class="panel-body">
-						<table class="table table-condensed table-bordered">
-							<thead>
-								<tr>
-									<th>ID</th>
-									<th>Start</th>
-									<th>Dest</th>
-									<th width="100%">State</th>
-									<th>Time&nbsp;(sec)</th>
-									<th>Elevator</th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr ng-repeat="passenger in simulation.passengers">
-									<td>{{ passenger.passengerNum }}</td>
-									<td>{{ passenger.startFloor.getLevel() }}</td>
-									<td>{{ passenger.destinationFloor.getLevel() }}</td>
-									<td>{{ passenger.passengerState }}</td>
-									<td>{{ passenger.getTravelTime() }}</td>
-									<td>{{ passenger.getElevatorString() }}</span></td>
-								</tr>
-							</tbody>
-						</table>
+						<div class="passenger-overall-stats">
+							<div class="row">
+								<div class="col-md-12">
+									<strong>Passengers Waiting:</strong> {{ simulation.countPassengersWaiting() }}
+								</div>
+							</div>
+							<div class="row">
+								<div class="col-md-12">
+									<strong>Passengers Done:</strong> {{ simulation.countPassengersDone() }}
+								</div>
+							</div>
+							<div class="row">
+								<div class="col-md-12">
+									<strong>Average Travel Time:</strong> {{ simulation.getAverageTravelTime() | number:2 }} s
+								</div>
+							</div>
+						</div>
+						
+						<div class="passenger-stat-table">
+							<table class="table table-condensed table-bordered">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Start</th>
+										<th>Dest</th>
+										<th width="100%">State</th>
+										<th>Time</th>
+										<th>Elevator</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr ng-repeat="passenger in simulation.passengers">
+										<td>{{ passenger.passengerNum }}</td>
+										<td>{{ passenger.startFloor.getLevel() }}</td>
+										<td>{{ passenger.destinationFloor.getLevel() }}</td>
+										<td>{{ passenger.passengerState }}</td>
+										<td><span ng-if="passenger.getTravelTime()">{{ passenger.getTravelTime() | number:2 }}&nbsp;s</span></td>
+										<td>{{ passenger.getElevatorString() }}</span></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
 					</div>
 				</div>
 			</div>

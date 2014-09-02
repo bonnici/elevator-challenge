@@ -17,3 +17,12 @@ body {
 .elevator-stops {
 	height: 60px;
 }
+
+.passenger-overall-stats {
+	margin-bottom: 10px;
+}
+
+.passenger-stat-table {
+	max-height: 500px;
+    overflow: auto;
+}

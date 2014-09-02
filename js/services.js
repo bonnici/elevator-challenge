@@ -83,6 +83,39 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
     	}
     };
     
+    Simulation.prototype.countPassengersWaiting = function() {
+    	var count = 0;
+    	for (var i=0; i < this.passengers.length; i++) {
+    		if (this.passengers[i].passengerState != Enums.PassengerState.ReachedDestination) {
+    			count++;
+    		}
+    	}
+    	return count;
+    };
+    
+    Simulation.prototype.countPassengersDone = function() {
+    	var count = 0;
+    	for (var i=0; i < this.passengers.length; i++) {
+    		if (this.passengers[i].passengerState == Enums.PassengerState.ReachedDestination) {
+    			count++;
+    		}
+    	}
+    	return count;
+    };
+    
+    Simulation.prototype.getAverageTravelTime = function() {
+    	var doneCount = 0;
+    	var totalTime = 0;
+    	for (var i=0; i < this.passengers.length; i++) {
+    		var travelTime = this.passengers[i].getTravelTime();
+    		if (travelTime) {
+    			totalTime += travelTime;
+    			doneCount++;
+    		}
+    	}
+    	return doneCount > 0 ? totalTime / doneCount : 0;
+    };
+    
     Simulation.prototype.openElevator = function(elevatorNum) {
     	if (elevatorNum >= 0 && elevatorNum < this.elevators.length) {
     		this.elevators[elevatorNum].elevatorState = Enums.ElevatorState.Open;
