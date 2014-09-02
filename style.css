@@ -2,12 +2,24 @@ body {
 	padding-top: 60px;
 }
 
-#newSimModal .form-control, #addPassengerForm .form-control {
+#newSimModal input.form-control {
 	width: 150px;
 }
 
-#addPassengerForm {
-	padding: 10px;
+#newSimModal select.form-control {
+	width: 100px;
+}
+
+#addPassengerForm input.form-control {
+	width: 150px;
+}
+
+#addPassengerForm, #addMultiplePassengersForm, #automaticallyAddPassengersForm {
+	padding: 5px;
+}
+
+#addMultiplePassengersForm input {
+	width: 100px;
 }
 
 .floor-table {

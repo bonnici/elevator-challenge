@@ -20,8 +20,8 @@ service('Logger', ["$log", function($log) {
 	};
 }]).
 
-factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passenger', 'Enums', 'SimulationSpeedMultiplier', 
-	function(Logger, Elevator, ElevatorSelector, Floor, Passenger, Enums, SimulationSpeedMultiplier) {
+factory('Simulation', ['$timeout', 'Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passenger', 'Enums', 'SimulationSpeedMultiplier', 
+	function($timeout, Logger, Elevator, ElevatorSelector, Floor, Passenger, Enums, SimulationSpeedMultiplier) {
 	
 	var Simulation = function(settings) {
 		this.init(settings);
@@ -73,6 +73,67 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
 			Logger.log("Simulation", "0", "Added passenger with start level " + startLevel
 				+ " and destination level " + destinationLevel);
     	}
+    };
+    
+    // Add passengers, prioritizing people going to or from the ground floor
+    Simulation.prototype.addPassengersRealisticRandom = function(numPeople) {
+    	var allDetails = [];
+    	for (var i=0; i < numPeople; i++) {
+    		var randomType = Math.random();
+    		var startFloor, destFloor;
+    		if (randomType < 0.4) { // 40% chance of going from a random floor to ground
+	    		startFloor = Math.ceil(Math.random() * this.floors.length);
+	    		destFloor = 1;
+    		}
+    		else if (randomType < 0.8) { // 40% chance of going from ground to another floor
+	    		startFloor = 1;
+	    		destFloor = Math.ceil(Math.random() * this.floors.length);
+    		}
+    		else { // 20% chance of going from a random floor to another random floor
+	    		startFloor = Math.floor(Math.random() * (this.floors.length + 1));
+	    		destFloor = Math.floor(Math.random() * (this.floors.length + 1));
+	    		// Ignore case where start floor equals dest floor
+    		}
+    		
+    		allDetails.push({ startFloor: startFloor, destFloor: destFloor });
+    	}
+    	
+    	addPassengersWithDelay(this, allDetails);
+    };
+    
+    // Add passengers starting on random floors but ending on the ground floor
+    Simulation.prototype.addPassengersToGround = function(numPeople) {
+    	var allDetails = [];
+    	for (var i=0; i < numPeople; i++) {
+    		var startFloor = Math.ceil(Math.random() * this.floors.length);
+    		allDetails.push({ startFloor: startFloor, destFloor: 1 });
+    	}
+    	
+    	addPassengersWithDelay(this, allDetails);
+    };
+    
+    // Add passengers starting on the ground floor and ending on random floors above
+    Simulation.prototype.addPassengersFromGround = function(numPeople) {
+    	var allDetails = [];
+    	for (var i=0; i < numPeople; i++) {
+    		var destFloor = Math.ceil(Math.random() * this.floors.length);
+    		allDetails.push({ startFloor: 1, destFloor: destFloor });
+    	}
+    	
+    	addPassengersWithDelay(this, allDetails);
+    };
+    
+    // Add passengers with completely randomized start and end floors
+    Simulation.prototype.addPassengersCompleteRandom = function(numPeople) {
+    	var allDetails = [];
+    	for (var i=0; i < numPeople; i++) {
+    		var startFloor = Math.floor(Math.random() * (this.floors.length + 1));
+    		var destFloor = Math.floor(Math.random() * (this.floors.length + 1));
+    		// Ignore case where start floor equals dest floor
+    		allDetails.push({ startFloor: startFloor, destFloor: destFloor });
+    	}
+    	
+    	addPassengersWithDelay(this, allDetails);
     };
     
     Simulation.prototype.getFloorForLevel = function(level) {
@@ -237,6 +298,18 @@ factory('Simulation', ['Logger', 'Elevator', 'ElevatorSelector', 'Floor', 'Passe
     	// Then update elevator's current floor and add elevator to new floor
 		elevator.currentFloor = floor;
 		floor.setElevatorSlot(elevator.elevatorNum, elevator);
+    }
+    
+	// Need to add passengers on a timeout so the selector has time to select the right elevator
+    function addPassengersWithDelay(simulation, remainingDetails) {
+    	if (remainingDetails.length > 0) {
+    		var currentDetail = remainingDetails.splice(0, 1)[0];
+    		
+    		simulation.addPassenger(currentDetail.startFloor, currentDetail.destFloor);
+    		$timeout(function() {
+    			addPassengersWithDelay(simulation, remainingDetails);
+    		}, 10);
+    	}
     }
     
 	return Simulation;
