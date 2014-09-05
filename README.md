@@ -12,3 +12,8 @@ right now.
 The application is entirely client-side and is built using AngularJS, and the
 UI uses Bootstrap but is fairly simple, so there is no complicated CSS or 
 responsive design.
+
+The elevator behavior is quite buggy at the moment, and they can get stuck going 
+between two floors. To fix it I think I need to change the pickup/dropoff set to 
+a queue and move to floors at the front of the queue, stopping at other floors 
+if needed. I'm not sure if I'll ever get around to doing that though.
